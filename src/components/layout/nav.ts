@@ -1,6 +1,18 @@
+import type { LucideIcon } from "lucide-react";
 import { BarChart3, Bot, FileText, Gauge, KeyRound, Link2, ListChecks, MessageSquareText, Settings, Swords, TrendingUp, FileBarChart } from "lucide-react";
 
-export const NAV = [
+export interface NavItem {
+  title: string;
+  /** Route path (see src/routes); kept as `string` so <Link to={…}> stays type-checkable. */
+  url: string;
+  icon: LucideIcon;
+}
+export interface NavGroup {
+  group: string;
+  items: NavItem[];
+}
+
+export const NAV: NavGroup[] = [
   { group: "Pilotage", items: [
     { title: "Vue générale", url: "/", icon: Gauge },
     { title: "SEO Performance", url: "/seo", icon: TrendingUp },
@@ -19,4 +31,4 @@ export const NAV = [
     { title: "Rapports", url: "/rapports", icon: FileBarChart },
   ] },
   { group: "Paramètres", items: [{ title: "Paramètres", url: "/parametres", icon: Settings }] },
-] as const;
+];

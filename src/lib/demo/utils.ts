@@ -12,7 +12,7 @@ export function kwStatus(k: Keyword): KwStatus {
   return k.position <= 20 ? "Visible" : "Faible visibilité";
 }
 export function kwTrend(k: Keyword): number {
-  if (k.position === null || k.previous === null) return 0;
+  if (k.position === null || k.previous == null) return 0;
   return k.previous - k.position; // positive = gained places
 }
 export function positionBuckets(kws: Keyword[]) {
@@ -50,7 +50,7 @@ export function seriesFor(days: number) {
   for (let i = 0; i < s.length; i += size) {
     const g = s.slice(i, i + size);
     out.push({
-      label: new Date(g[0].date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }),
+      label: new Date(g[0]?.date ?? s[i]?.date ?? Date.now()).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }),
       impressions: g.reduce((a, p) => a + p.impressions, 0),
       clicks: g.reduce((a, p) => a + p.clicks, 0),
       firstPage: Math.round(g.reduce((a, p) => a + p.firstPage, 0) / g.length),

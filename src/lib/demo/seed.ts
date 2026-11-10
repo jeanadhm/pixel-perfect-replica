@@ -14,7 +14,13 @@ function rng(seed: number) {
 }
 const r = rng(42);
 const int = (a: number, b: number) => Math.floor(r() * (b - a + 1)) + a;
-const pick = <T,>(arr: readonly T[]) => arr[Math.floor(r() * arr.length)];
+// Non-deterministic index helper: never call it inside the RNG-driven generators below.
+const at = <T>(arr: readonly T[], i: number): T => {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`Index ${i} hors limites (${arr.length})`);
+  return v;
+};
+const pick = <T>(arr: readonly T[]): T => at(arr, Math.floor(r() * arr.length));
 const sample = <T,>(arr: readonly T[], n: number) => [...arr].sort(() => r() - 0.5).slice(0, n);
 
 export const TODAY = new Date("2026-11-10T09:00:00Z");
@@ -62,19 +68,19 @@ function buildKeywords(): Keyword[] {
   let v = 0;
   return terms.slice(0, 240).map((t, i) => {
     const visible = visibleIdx.has(i);
-    const position = visible ? positions[v] : null;
+    const position: number | null = visible ? at(positions, v) : null;
     let previous: number | null = null;
-    if (visible) {
+    if (visible && position !== null) {
       const k = v; v++;
-      if (k % 3 === 0 && k < 84) previous = position! + int(2, 9); // progression (28)
-      else if (k % 7 === 1 && k < 84) previous = Math.max(1, position! - int(2, 6)); // régression
+      if (k % 3 === 0 && k < 84) previous = position + int(2, 9); // progression (28)
+      else if (k % 7 === 1 && k < 84) previous = Math.max(1, position - int(2, 6)); // régression
       else previous = position;
     }
     const history = Array.from({ length: 12 }, (_, w) => {
       const label = `S${w + 35}`;
-      if (!visible) return { week: label, position: null };
-      const start = previous ?? position!;
-      const p = Math.round(start + ((position! - start) * w) / 11 + (w < 11 ? int(-2, 2) : 0));
+      if (!visible || position === null) return { week: label, position: null };
+      const start = previous ?? position;
+      const p = Math.round(start + ((position - start) * w) / 11 + (w < 11 ? int(-2, 2) : 0));
       return { week: label, position: Math.max(1, p) };
     });
     return {
@@ -98,10 +104,11 @@ function buildKeywords(): Keyword[] {
 function normalizeTrends(kws: Keyword[]) {
   const vis = kws.filter((k) => k.position !== null);
   vis.forEach((k, i) => {
-    if (i < 28) k.previous = k.position! + 3 + (i % 6);
-    else if (i < 40) k.previous = Math.max(1, k.position! - 2 - (i % 4));
+    if (!k.position) return;
+    if (i < 28) k.previous = k.position + 3 + (i % 6);
+    else if (i < 40) k.previous = Math.max(1, k.position - 2 - (i % 4));
     else k.previous = k.position;
-    if (k.previous === k.position && i < 40) k.previous = k.position! + (i < 28 ? 1 : -1);
+    if (k.previous === k.position && i < 40) k.previous = k.position + (i < 28 ? 1 : -1);
   });
   return kws;
 }
@@ -144,7 +151,7 @@ export const seedPrompts: GeoPrompt[] = BASE_PROMPTS.map(([q, c], i) => ({
   question: q,
   category: c,
   intent: q.startsWith("Comment") || q.startsWith("Le ") ? "Informationnelle" : q.includes("prix") ? "Transactionnelle" : "Commerciale",
-  platform: PLATFORMS[i % 5],
+  platform: at(PLATFORMS, i % 5),
   frequency: i % 3 === 0 ? "Hebdomadaire" : i % 3 === 1 ? "Bimensuelle" : "Mensuelle",
 }));
 
@@ -154,8 +161,8 @@ export function buildGeoTests(prompts: GeoPrompt[]): GeoTest[] {
   const tests: GeoTest[] = [];
   const total = 150;
   for (let i = 0; i < total; i++) {
-    const p = prompts[i % prompts.length];
-    const platform = i < 30 ? p.platform : PLATFORMS[(i + Math.floor(i / 30)) % 5];
+    const p = at(prompts, i % prompts.length);
+    const platform = i < 30 ? p.platform : at(PLATFORMS, (i + Math.floor(i / 30)) % 5);
     const mentioned = i % 25 < 8; // exactly 8/25 = 32%
     const incorrect = mentioned && i % 25 === 7;
     const recommended = mentioned && !incorrect && i % 25 < 4;
@@ -191,14 +198,14 @@ const PRIORITIES: Priority[] = ["Critique", "Haute", "Haute", "Moyenne", "Moyenn
 
 export const seedActions: Action[] = [...SEO_ACTIONS.map((t) => ["SEO", t] as const), ...GEO_ACTIONS.map((t) => ["GEO", t] as const)].map(([cat, title], i) => {
   const start = int(-80, 10);
-  const status = STATUSES[(i * 7) % 10];
+  const status = at(STATUSES, (i * 7) % 10);
   return {
     id: `act-${i + 1}`,
     title,
     description: `${title}. Action du plan ${cat} AMBS visant à améliorer la visibilité ${cat === "SEO" ? "sur Google" : "dans les moteurs IA"}.`,
     category: cat,
-    priority: PRIORITIES[(i * 5) % 6],
-    owner: OWNERS[i % OWNERS.length],
+    priority: at(PRIORITIES, (i * 5) % 6),
+    owner: at(OWNERS, i % OWNERS.length),
     start: dayOffset(start),
     due: dayOffset(start + int(10, 45)),
     status,
@@ -217,16 +224,16 @@ const PAGE_DEFS: [string, PageType, number][] = [
   ["À propos", "Page institutionnelle", 0], ["Méthodologie", "Page institutionnelle", 0], ["Contact", "Page institutionnelle", 0],
 ];
 export const seedPages: SitePage[] = PAGE_DEFS.map(([name, type, fi], i) => {
-  const f = FAMILIES[fi];
+  const f = at(FAMILIES, fi);
   const slug = name === "Accueil" ? "" : name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const prefix = type === "Article de blog" ? "blog/" : type === "Étude de cas" ? "etudes-de-cas/" : type === "Page secteur" ? "secteurs/" : "";
   const published = i % 9 === 8 ? "Brouillon" : i % 13 === 12 ? "À créer" : "Publiée";
   const indexed = published !== "Publiée" ? "Non indexée" : i % 7 === 5 ? "En attente" : i % 11 === 10 ? "Non indexée" : "Indexée";
   const url = `https://ambs-agency.fr/${prefix}${slug}`;
   return {
-    id: `pg-${i + 1}`, name, url, type, family: f.name, mainKeyword: f.base[0], keywordCount: int(3, 18),
+    id: `pg-${i + 1}`, name, url, type, family: f.name, mainKeyword: at(f.base, 0), keywordCount: int(3, 18),
     published, indexed, score: published === "Publiée" ? int(35, 92) : 0, clicks: indexed === "Indexée" ? int(0, 900) : 0,
-    lastOptimized: dayOffset(-int(3, 120)), owner: OWNERS[i % OWNERS.length],
+    lastOptimized: dayOffset(-int(3, 120)), owner: at(OWNERS, i % OWNERS.length),
     title: `${name} | AMBS Agency`, meta: `Découvrez comment AMBS Agency vous accompagne : ${name.toLowerCase()}. Expertise WhatsApp, automatisation et IA.`,
     h1: name, h2: "Pourquoi choisir AMBS ? · Notre méthode · Questions fréquentes", canonical: url,
     internalLinks: int(2, 24), schema: pick(["Organization", "Service", "FAQPage", "Article", "Aucune"]), geoContent: r() > 0.45,
@@ -236,36 +243,36 @@ seedPages.forEach((p, i) => { if (i % 6 === 3 && p.indexed === "Indexée") p.cli
 
 const DOMAINS = ["journaldunet.com", "frenchweb.fr", "blogdumoderateur.com", "maddyness.com", "e-marketing.fr", "lesechos.fr", "widoobiz.com", "decideo.fr", "annuaire-agences.fr", "sortlist.fr", "clutch.co", "lafrenchtech.com", "bpifrance.fr", "medium.com", "reddit.com", "goodfirms.co", "agence-web-directory.fr", "presse-citron.net", "abondance.com", "ecommercemag.fr"];
 export const seedBacklinks: Backlink[] = Array.from({ length: 42 }, (_, i) => {
-  const d = DOMAINS[i % DOMAINS.length];
+  const d = at(DOMAINS, i % DOMAINS.length);
   const auth = int(12, 88);
   return {
     id: `bl-${i + 1}`, domain: d, source: `https://${d}/${pick(["article", "dossier", "agences", "guide"])}-${int(100, 999)}`,
-    target: pick(seedPages.slice(0, 13)).url, type: pick(["Dofollow", "Dofollow", "Dofollow", "Nofollow", "Sponsorisé", "UGC"] as const), authority: auth,
+    target: at(seedPages.slice(0, 13), 0).url, type: pick(["Dofollow", "Dofollow", "Dofollow", "Nofollow", "Sponsorisé", "UGC"] as const), authority: auth,
     date: dayOffset(-int(1, 360)), status: i % 9 === 4 ? "Perdu" : i % 13 === 6 ? "En attente" : "Actif",
     quality: auth > 70 ? "Excellente" : auth > 50 ? "Bonne" : auth > 30 ? "Moyenne" : "Faible",
   };
 });
 export const seedMentions: Mention[] = Array.from({ length: 14 }, (_, i) => ({
-  id: `mn-${i + 1}`, site: DOMAINS[(i * 3) % DOMAINS.length], url: `https://${DOMAINS[(i * 3) % DOMAINS.length]}/mention-${int(10, 99)}`,
+  id: `mn-${i + 1}`, site: at(DOMAINS, (i * 3) % DOMAINS.length), url: `https://${at(DOMAINS, (i * 3) % DOMAINS.length)}/mention-${int(10, 99)}`,
   type: pick(["Article", "Annuaire", "Podcast", "Forum", "Communiqué"] as const), date: dayOffset(-int(1, 200)), linked: r() > 0.5,
 }));
 
 export const seedCompetitors: Competitor[] = COMPETITOR_NAMES.map((n, i) => ({
   id: `cp-${i + 1}`, name: n, site: `${n.toLowerCase().replace(/\s+/g, "-")}.example`,
-  commonKeywords: [118, 94, 76, 61][i], seoVisibility: [41, 33, 27, 19][i], shareOfVoice: [24, 19, 15, 11][i],
-  geoPresence: [46, 38, 29, 21][i], aiCitations: [68, 52, 37, 24][i],
+  commonKeywords: at([118, 94, 76, 61], i), seoVisibility: at([41, 33, 27, 19], i), shareOfVoice: at([24, 19, 15, 11], i),
+  geoPresence: at([46, 38, 29, 21], i), aiCitations: at([68, 52, 37, 24], i),
   topTerms: sample(seedKeywords.map((k) => k.term), 4),
 }));
 
 const COMPANIES = ["Immo Horizon", "Groupe Védrine", "Atelier Lumen", "Cabinet Ferrand", "AutoPlus Lyon", "Maison Calisto", "FormaPro Sud", "Batir & Co", "Optique Aurore", "Clinique Belair", "Nexa Logistique", "Vinci Courtage", "Hôtel Les Pins", "SportZone", "Agence Delta", "Boulangeries Roux", "Studio Kappa", "Pharma Nord", "Domotik", "Eco Habitat", "Assur Plus", "TechnoServ", "Gîtes de Provence", "Kiné Santé", "Mobilia", "Brasserie Lune", "EduKids", "Garage Central", "Fitlab", "Comptoir Bio", "Lexa Avocats", "Primo Énergie", "Les Jardins d'Ys", "Zenith Voyages", "Galerie Prisme", "Optima RH"];
 export const seedLeads: Lead[] = COMPANIES.map((c, i) => {
-  const source = (["SEO", "SEO", "GEO", "Direct", "SEO", "Référent", "GEO", "SEO", "Direct"] as const)[i % 9];
-  const status = (["Nouveau", "Qualifié", "Rendez-vous", "Proposition", "Client", "Perdu", "Qualifié", "Rendez-vous", "Nouveau", "Client"] as const)[i % 10];
+  const source = at(["SEO", "SEO", "GEO", "Direct", "SEO", "Référent", "GEO", "SEO", "Direct"] as const, i % 9);
+  const status = at(["Nouveau", "Qualifié", "Rendez-vous", "Proposition", "Client", "Perdu", "Qualifié", "Rendez-vous", "Nouveau", "Client"] as const, i % 10);
   return {
     id: `ld-${i + 1}`, company: c, source,
     channel: source === "SEO" ? "Google organique" : source === "GEO" ? pick(["ChatGPT", "Perplexity", "Gemini"]) : source === "Direct" ? "Accès direct" : "Site partenaire",
     origin: source === "SEO" || source === "GEO" ? pick(seedPages.slice(1, 25)).name : "—",
-    date: dayOffset(-int(1, 85)), status, owner: OWNERS[i % OWNERS.length], value: pick([1800, 2400, 3600, 4800, 6000, 9500, 12000]),
+    date: dayOffset(-int(1, 85)), status, owner: at(OWNERS, i % OWNERS.length), value: pick([1800, 2400, 3600, 4800, 6000, 9500, 12000]),
   };
 });
 
@@ -291,7 +298,8 @@ function buildDaily(): DailyPoint[] {
     p.sessions = Math.round(p.clicks * 1.18);
   });
   const diff = 48250 - pts.slice(-30).reduce((s, p) => s + p.impressions, 0);
-  pts[pts.length - 1].impressions += diff;
+  const last = at(pts, pts.length - 1);
+  last.impressions += diff;
   return pts;
 }
 export const daily = buildDaily();
