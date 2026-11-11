@@ -7,10 +7,10 @@ import { simulateGeoTest } from "@/lib/demo/geo";
 import { serializeCsv, createReportPdf } from "@/lib/demo/export";
 import { NewActionDialog } from "@/components/actions/NewActionDialog";
 import { DataTable } from "@/components/shared/DataTable";
-const KEY = "ambs-hub-demo-v1";
+const KEY = "ambs-hub-demo-v2";
 beforeEach(() => {
   localStorage.clear();
-  localStorage.setItem("ambs-hub-active-workspace", "demo");
+  localStorage.setItem("ambs-hub-active-workspace-v2", "demo");
 });
 afterEach(() => {
   cleanup();

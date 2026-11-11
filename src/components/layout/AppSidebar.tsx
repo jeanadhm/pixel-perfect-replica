@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LogOut } from "lucide-react";
+import { LogOut, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sidebar,
@@ -74,6 +74,17 @@ export function AppSidebar() {
         ))}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-3">
+        {!collapsed && (
+          <a
+            href="https://ambs-agency.com"
+            target="_blank"
+            rel="noreferrer"
+            className="mb-3 flex items-center justify-between rounded-lg border border-sidebar-border px-3 py-2.5 text-xs text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            ambs-agency.com
+            <ExternalLink className="size-3" />
+          </a>
+        )}
         <div className="flex items-center gap-2.5">
           <div className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
             {workspace === "demo" ? "SB" : "AM"}

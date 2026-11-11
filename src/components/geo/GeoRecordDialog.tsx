@@ -68,6 +68,7 @@ export function GeoRecordDialog({ prompt, onSaved }: { prompt?: GeoPrompt; onSav
               id: uid("geo"),
               origin: "Saisie manuelle",
               promptId: selected.id,
+              siteId: selected.siteId,
               question: selected.question,
               date: `${draft.date}T12:00:00.000Z`,
               platform: draft.platform,

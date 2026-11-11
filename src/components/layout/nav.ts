@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Globe2,
   BarChart3,
   Bot,
   FileText,
@@ -29,7 +30,8 @@ export const NAV: NavGroup[] = [
   {
     group: "Pilotage",
     items: [
-      { title: "Vue générale", url: "/", icon: Gauge },
+      { title: "Vue d’ensemble", url: "/", icon: Gauge },
+      { title: "Sites & Liens", url: "/sites", icon: Globe2 },
       { title: "SEO Performance", url: "/seo", icon: TrendingUp },
       { title: "GEO Intelligence", url: "/geo", icon: Bot },
       { title: "Mots-clés", url: "/mots-cles", icon: KeyRound },

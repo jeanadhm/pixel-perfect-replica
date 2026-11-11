@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useDemo } from "@/lib/demo/store";
 import { Empty, Panel } from "@/components/shared/ui";
 import { pageHead } from "@/lib/head";
-import { seedBacklinks, seedMentions } from "@/lib/demo/seed";
+import { seedMentions } from "@/lib/demo/seed";
 import { fdate, nf } from "@/lib/demo/utils";
 import { PageHeader, Kpi } from "@/components/shared/ui";
 import { DataTable } from "@/components/shared/DataTable";
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/backlinks")({
   component: BacklinksPage,
 });
 function BacklinksPage() {
-  const { workspace } = useDemo();
+  const { workspace, backlinks, siteScope } = useDemo();
   const [status, setStatus] = useState("all");
   if (workspace === "ambs") return <ExternalTracking kind="backlinks" />;
   return (
@@ -28,18 +28,18 @@ function BacklinksPage() {
         description="Suivez votre profil de liens et repérez les mentions à valoriser. Les liens et mentions ci-dessous sont fictifs."
       />
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Backlinks" value={seedBacklinks.length} />
-        <Kpi label="Domaines référents" value={new Set(seedBacklinks.map((b) => b.domain)).size} />
+        <Kpi label="Backlinks" value={backlinks.length} />
+        <Kpi label="Domaines référents" value={new Set(backlinks.map((b) => b.domain)).size} />
         <Kpi
           label="Autorité moyenne"
           value={nf(
-            seedBacklinks.reduce((s, b) => s + (b.authority ?? 0), 0) / seedBacklinks.length,
+            backlinks.reduce((s, b) => s + (b.authority ?? 0), 0) / (backlinks.length || 1),
             1,
           )}
         />
         <Kpi
           label="Liens perdus"
-          value={seedBacklinks.filter((b) => b.status === "Perdu").length}
+          value={backlinks.filter((b) => b.status === "Perdu").length}
           tone="danger"
         />
       </div>
@@ -50,7 +50,7 @@ function BacklinksPage() {
         </TabsList>
         <TabsContent value="links" className="mt-4">
           <DataTable
-            rows={seedBacklinks.filter((b) => status === "all" || b.status === status)}
+            rows={backlinks.filter((b) => status === "all" || b.status === status)}
             search={(b) => `${b.domain} ${b.target}`}
             label="Rechercher un domaine"
             filters={
@@ -116,7 +116,11 @@ function BacklinksPage() {
         </TabsContent>
         <TabsContent value="mentions" className="mt-4">
           <DataTable
-            rows={seedMentions}
+            rows={seedMentions.filter(
+              (_, i) =>
+                siteScope === "all" ||
+                ["ambs", "leads", "dialagent", "factory"][i % 4] === siteScope,
+            )}
             search={(m) => m.site}
             label="Rechercher une mention"
             columns={[

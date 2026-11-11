@@ -9,7 +9,10 @@ import { stateSchema } from "@/lib/demo/schema";
 import { KeywordWorkflow } from "@/components/keywords/KeywordWorkflow";
 import { GeoRecordDialog } from "@/components/geo/GeoRecordDialog";
 import type { KeywordMeasurement } from "@/lib/demo/types";
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem("ambs-hub-active-workspace-v2", "ambs");
+});
 afterEach(cleanup);
 function WorkspaceProbe() {
   const { workspace, switchWorkspace, keywords, update, geoTests, restore, snapshot } = useDemo();

@@ -1,3 +1,4 @@
+import { SITES } from "@/lib/demo/sites";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -88,7 +89,19 @@ function SettingsPage() {
             cibles et actions du document fourni, sans statistique inventée.
           </p>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Site">ambs-agency.com</Field>
+            <Field label="Sites">
+              {SITES.map((site) => (
+                <a
+                  key={site.id}
+                  className="block text-primary underline"
+                  href={site.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {site.host}
+                </a>
+              ))}
+            </Field>
             <Field label="Compte">Local, sans authentification</Field>
           </div>
         </Panel>

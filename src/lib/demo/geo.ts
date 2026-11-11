@@ -1,4 +1,5 @@
 import type { GeoPrompt, GeoTest } from "./types";
+import { SITES } from "./sites";
 import { uid } from "./store";
 // A deliberately explicit local sample, never an API call or a measured result.
 export function simulateGeoTest(prompt: GeoPrompt, iteration: number): GeoTest {
@@ -6,6 +7,7 @@ export function simulateGeoTest(prompt: GeoPrompt, iteration: number): GeoTest {
   const recommended = mentioned && iteration % 2 === 0;
   return {
     id: uid("geo"),
+    siteId: prompt.siteId,
     origin: "Simulation",
     promptId: prompt.id,
     date: new Date().toISOString(),
@@ -16,7 +18,9 @@ export function simulateGeoTest(prompt: GeoPrompt, iteration: number): GeoTest {
     accuracy: mentioned ? "Exacte" : "—",
     mentionPosition: mentioned ? 2 : null,
     competitors: ["Nova Conversations"],
-    sources: mentioned ? ["ambs-agency.fr"] : [],
+    sources: mentioned
+      ? [SITES.find((s) => s.id === prompt.siteId)?.url ?? "https://ambs-agency.com"]
+      : [],
     status: recommended
       ? "Mentionnée et recommandée"
       : mentioned

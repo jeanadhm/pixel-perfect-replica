@@ -1,3 +1,4 @@
+import { SITES } from "@/lib/demo/sites";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { GeoRecordDialog } from "@/components/geo/GeoRecordDialog";
@@ -58,7 +59,7 @@ function GeoPage() {
         const host = new URL(
           source.startsWith("http") ? source : `https://${source}`,
         ).hostname.replace(/^www\./, "");
-        return host === "ambs-agency.com" || (origin === "Simulation" && host === "ambs-agency.fr");
+        return SITES.some((site) => site.host === host);
       } catch {
         return false;
       }

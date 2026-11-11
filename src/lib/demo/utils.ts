@@ -1,4 +1,5 @@
 import type { Keyword, KwStatus } from "./types";
+import type { SiteScope } from "./sites";
 import { daily, TODAY } from "./seed";
 
 export const nf = (n: number | null, d = 0) =>
@@ -50,9 +51,28 @@ export function positionBuckets(kws: Keyword[]) {
   return Object.entries(b).map(([name, value]) => ({ name, value }));
 }
 
-export function windowStats(days: number, offset = 0) {
+export function windowStats(days: number, offset = 0, scope: SiteScope = "all") {
   const end = daily.length - offset;
-  const slice = daily.slice(Math.max(0, end - days), end);
+  const shares = { ambs: 0.42, leads: 0.28, dialagent: 0.22, factory: 0.08 };
+  const distribute = (value: number) => {
+    const ambs = Math.floor(value * shares.ambs),
+      leads = Math.floor(value * shares.leads),
+      dialagent = Math.floor(value * shares.dialagent);
+    return { ambs, leads, dialagent, factory: value - ambs - leads - dialagent };
+  };
+  const slice = daily
+    .slice(Math.max(0, end - days), end)
+    .map((p) =>
+      scope === "all"
+        ? p
+        : {
+            ...p,
+            impressions: distribute(p.impressions)[scope],
+            clicks: distribute(p.clicks)[scope],
+            sessions: distribute(p.sessions)[scope],
+            firstPage: distribute(p.firstPage)[scope],
+          },
+    );
   const impressions = slice.reduce((s, p) => s + p.impressions, 0);
   const clicks = slice.reduce((s, p) => s + p.clicks, 0);
   const sessions = slice.reduce((s, p) => s + p.sessions, 0);
@@ -71,8 +91,8 @@ export const change = (a: number, b: number) => (b ? ((a - b) / b) * 100 : 0);
 export const daysAgo = (iso: string) => (TODAY.getTime() - new Date(iso).getTime()) / 86400000;
 
 // Aggregate daily points to weekly/monthly buckets for long periods.
-export function seriesFor(days: number) {
-  const s = windowStats(days).slice;
+export function seriesFor(days: number, scope: SiteScope = "all") {
+  const s = windowStats(days, 0, scope).slice;
   if (days <= 30)
     return s.map((p) => ({
       ...p,

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PERIOD_LABEL, PERIOD_DAYS, useDemo, type Period } from "@/lib/demo/store";
-import { seedBacklinks, seedCompetitors, TODAY } from "@/lib/demo/seed";
+import { TODAY } from "@/lib/demo/seed";
 import { exportCsv } from "@/lib/demo/export";
 import { kwStatus, kwTrend, windowStats } from "@/lib/demo/utils";
 import { keywordExportRows } from "@/lib/demo/workflow";
@@ -29,6 +29,7 @@ export function AppHeader() {
     leads,
     audits,
     workspace,
+    siteScope,
     backlinks,
     competitors,
   } = useDemo();
@@ -97,12 +98,12 @@ export function AppHeader() {
     if (path === "/backlinks")
       return exportCsv(
         "backlinks",
-        (workspace === "demo" ? seedBacklinks : backlinks).map((b) => ({ ...b })),
+        backlinks.map((b) => ({ ...b })),
       );
     if (path === "/concurrents")
       return exportCsv(
         "concurrents",
-        (workspace === "demo" ? seedCompetitors : competitors).map((c) => ({
+        competitors.map((c) => ({
           ...c,
           topTerms: c.topTerms.join(", "),
         })),
@@ -110,7 +111,7 @@ export function AppHeader() {
     if (path === "/" || path === "/seo")
       return exportCsv(
         "trafic-seo",
-        windowStats(PERIOD_DAYS[period]).slice.map((p) => ({ ...p })),
+        windowStats(PERIOD_DAYS[period], 0, siteScope).slice.map((p) => ({ ...p })),
       );
     return exportCsv("mots-cles", keywordExportRows(keywords));
   };
@@ -147,7 +148,7 @@ export function AppHeader() {
             {workspace === "demo" ? "Démo locale" : "Suivi AMBS"}
           </span>
         )}
-        {!["/parametres", "/rapports"].includes(path) && (
+        {!["/parametres", "/rapports", "/sites"].includes(path) && (
           <Button
             variant="outline"
             size="sm"

@@ -27,6 +27,7 @@ export interface KeywordMeasurement {
   notes: string;
 }
 export interface Keyword {
+  siteId?: string | undefined;
   id: string;
   term: string;
   family: string;
@@ -53,6 +54,7 @@ export type GeoStatus =
   | "Réponse incorrecte";
 
 export interface GeoPrompt {
+  siteId?: string | undefined;
   id: string;
   question: string;
   category: string;
@@ -62,6 +64,7 @@ export interface GeoPrompt {
 }
 
 export interface GeoTest {
+  siteId?: string | undefined;
   id: string;
   promptId: string;
   date: string;
@@ -83,6 +86,7 @@ export type ActionStatus = "À faire" | "En cours" | "En attente" | "Terminé" |
 export type Priority = "Critique" | "Haute" | "Moyenne" | "Basse";
 
 export interface Action {
+  siteId?: string | undefined;
   id: string;
   title: string;
   description: string;
@@ -113,6 +117,7 @@ export type PageType =
   "Page solution" | "Page secteur" | "Étude de cas" | "Article de blog" | "Page institutionnelle";
 
 export interface SitePage {
+  siteId?: string | undefined;
   id: string;
   name: string;
   url: string;
@@ -137,6 +142,7 @@ export interface SitePage {
 }
 
 export interface Backlink {
+  siteId?: string | undefined;
   id: string;
   domain: string;
   source: string;
@@ -158,6 +164,7 @@ export interface Mention {
 }
 
 export interface Competitor {
+  siteId?: string | undefined;
   id: string;
   name: string;
   site: string;
@@ -170,6 +177,7 @@ export interface Competitor {
 }
 
 export interface Lead {
+  siteId?: string | undefined;
   id: string;
   company: string;
   source: "SEO" | "GEO" | "Direct" | "Référent";

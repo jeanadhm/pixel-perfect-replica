@@ -3,6 +3,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { DemoStoreProvider, useDemo } from "@/lib/demo/store";
 import { AppSidebar } from "./AppSidebar";
+import { WorkspaceBar } from "./WorkspaceBar";
 import { AppHeader } from "./AppHeader";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -14,6 +15,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SidebarInset className="min-w-0 bg-background">
             <AppHeader />
             <StorageNotice />
+            <WorkspaceBar />
             <main
               id="main-content"
               className="mx-auto w-full max-w-[1440px] flex-1 p-4 md:p-6 lg:p-8"
@@ -38,6 +40,6 @@ function StorageNotice() {
 }
 
 function WorkspaceContent({ children }: { children: ReactNode }) {
-  const { workspace } = useDemo();
-  return <div key={workspace}>{children}</div>;
+  const { workspace, siteScope } = useDemo();
+  return <div key={`${workspace}-${siteScope}`}>{children}</div>;
 }

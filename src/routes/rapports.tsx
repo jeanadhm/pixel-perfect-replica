@@ -1,3 +1,4 @@
+import { siteLabel } from "@/lib/demo/sites";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Download, FileText, Table2 } from "lucide-react";
@@ -14,20 +15,29 @@ export const Route = createFileRoute("/rapports")({
   component: ReportsPage,
 });
 function ReportsPage() {
-  const { period, keywords, geoTests, actions, pages, leads, audits, workspace } = useDemo();
+  const { period, keywords, geoTests, actions, pages, leads, audits, workspace, siteScope } =
+    useDemo();
   const [busy, setBusy] = useState(false);
-  const traffic = windowStats(PERIOD_DAYS[period]);
+  const traffic = windowStats(PERIOD_DAYS[period], 0, siteScope);
   const simulated = geoTests.filter((t) => (t.origin ?? "Simulation") === "Simulation");
   const manual = geoTests.filter((t) => t.origin === "Saisie manuelle");
   const mentions = simulated.filter((t) => t.mentioned).length;
   const sections = [
     {
+      heading: `Perimetre : ${siteLabel(siteScope)}`,
+      lines: [
+        workspace === "demo"
+          ? "Demonstration : statistiques SEO, GEO, leads et audits fictifs. Seuls les liens et observations HTML du catalogue sont reels."
+          : "Suivi manuel local. Aucune base de donnees.",
+      ],
+    },
+    {
       heading: "Plan SEO - suivi local",
       lines: [
         `Mots-cles a cibler : ${keywords.filter((k) => keywordPlan(k).stage === "À cibler").length}`,
         `Mots-cles integres : ${keywords.filter((k) => keywordPlan(k).stage === "Intégré").length}`,
-        `Mots-cles avec releves manuels : ${keywords.filter((k) => k.measurements?.length).length}`,
-        `Actions avec resultat mesure : ${actions.filter((a) => a.result != null).length}`,
+        `Mots-cles avec releves saisis ou simules : ${keywords.filter((k) => k.measurements?.length).length}`,
+        `Actions avec resultat renseigne : ${actions.filter((a) => a.result != null).length}`,
       ],
     },
     {

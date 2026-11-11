@@ -1,7 +1,7 @@
 import { ExternalTracking } from "@/components/shared/ExternalTracking";
 import { createFileRoute } from "@tanstack/react-router";
 import { pageHead } from "@/lib/head";
-import { seedCompetitors } from "@/lib/demo/seed";
+
 import { useDemo } from "@/lib/demo/store";
 import { pct } from "@/lib/demo/utils";
 import { PageHeader, Panel } from "@/components/shared/ui";
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/concurrents")({
   component: CompetitorsPage,
 });
 function CompetitorsPage() {
-  const { keywords, geoTests: allGeoTests, workspace } = useDemo();
+  const { keywords, geoTests: allGeoTests, workspace, competitors } = useDemo();
   const geoTests = allGeoTests.filter((test) => (test.origin ?? "Simulation") === "Simulation");
   const ownSeo = keywords.length
     ? (keywords.filter((k) => k.position !== null).length / keywords.length) * 100
@@ -25,7 +25,7 @@ function CompetitorsPage() {
     : 0;
   const data = [
     { label: "AMBS Agency", seo: Math.round(ownSeo), geo: Math.round(ownGeo) },
-    ...seedCompetitors.map((c) => ({ label: c.name, seo: c.seoVisibility, geo: c.geoPresence })),
+    ...competitors.map((c) => ({ label: c.name, seo: c.seoVisibility, geo: c.geoPresence })),
   ];
   if (workspace === "ambs") return <ExternalTracking kind="competitors" />;
   return (
@@ -49,7 +49,7 @@ function CompetitorsPage() {
         />
       </Panel>
       <DataTable
-        rows={seedCompetitors}
+        rows={competitors}
         search={(c) => `${c.name} ${c.topTerms.join(" ")}`}
         label="Rechercher un concurrent"
         columns={[

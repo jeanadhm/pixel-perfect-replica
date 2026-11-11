@@ -92,7 +92,7 @@ function buildKeywords(): Keyword[] {
       previous,
       volume: pick([30, 50, 70, 90, 110, 140, 170, 210, 260, 320, 480, 720, 880, 1300, 1900, 2400]),
       difficulty: int(8, 78),
-      url: `https://ambs-agency.fr/${t.slug}`,
+      url: `https://ambs-agency.com/${t.slug}`,
       history,
       competitors: sample(COMPETITOR_NAMES, 3).map((n) => ({ name: n, position: int(1, 30) })).sort((a, b) => a.position - b.position),
       lastCheck: dayOffset(-int(0, 4)),
@@ -155,7 +155,7 @@ export const seedPrompts: GeoPrompt[] = BASE_PROMPTS.map(([q, c], i) => ({
   frequency: i % 3 === 0 ? "Hebdomadaire" : i % 3 === 1 ? "Bimensuelle" : "Mensuelle",
 }));
 
-const SOURCES = ["ambs-agency.fr", "lesechos.fr", "journaldunet.com", "blogdumoderateur.com", "g2.com", "capterra.fr", "meta.com", "frenchweb.fr", "hubspot.fr", "linkedin.com"];
+const SOURCES = ["ambs-agency.com", "lesechos.fr", "journaldunet.com", "blogdumoderateur.com", "g2.com", "capterra.fr", "meta.com", "frenchweb.fr", "hubspot.fr", "linkedin.com"];
 // 32% mention rate on the overall test set.
 export function buildGeoTests(prompts: GeoPrompt[]): GeoTest[] {
   const tests: GeoTest[] = [];
@@ -229,7 +229,7 @@ export const seedPages: SitePage[] = PAGE_DEFS.map(([name, type, fi], i) => {
   const prefix = type === "Article de blog" ? "blog/" : type === "Étude de cas" ? "etudes-de-cas/" : type === "Page secteur" ? "secteurs/" : "";
   const published = i % 9 === 8 ? "Brouillon" : i % 13 === 12 ? "À créer" : "Publiée";
   const indexed = published !== "Publiée" ? "Non indexée" : i % 7 === 5 ? "En attente" : i % 11 === 10 ? "Non indexée" : "Indexée";
-  const url = `https://ambs-agency.fr/${prefix}${slug}`;
+  const url = `https://ambs-agency.com/${prefix}${slug}`;
   return {
     id: `pg-${i + 1}`, name, url, type, family: f.name, mainKeyword: at(f.base, 0), keywordCount: int(3, 18),
     published, indexed, score: published === "Publiée" ? int(35, 92) : 0, clicks: indexed === "Indexée" ? int(0, 900) : 0,

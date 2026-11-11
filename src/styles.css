@@ -53,7 +53,7 @@
 }
 
 :root {
-  --radius: 0.5rem;
+  --radius: 0.8rem;
   --background: oklch(0.982 0.004 160);
   --foreground: oklch(0.2 0.035 252);
   --card: oklch(1 0 0);
@@ -85,18 +85,20 @@
   --chart-4: oklch(0.55 0.2 295);
   --chart-5: oklch(0.74 0.15 70);
   --chart-6: oklch(0.8 0.01 264);
-  --sidebar: oklch(0.2 0.05 255);
+  --sidebar: oklch(0.23 0.035 172);
   --sidebar-foreground: oklch(0.82 0.02 262);
   --sidebar-primary: oklch(0.66 0.16 148);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.27 0.05 252);
+  --sidebar-accent: oklch(0.31 0.04 172);
   --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(0.3 0.04 262);
+  --sidebar-border: oklch(0.34 0.03 172);
   --sidebar-ring: oklch(0.66 0.16 148);
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
+  * {
+    border-color: var(--color-border);
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -105,10 +107,24 @@
   }
 }
 
-@utility tabular { font-variant-numeric: tabular-nums; }
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
 @utility card-surface {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: 0 1px 2px oklch(0.22 0.03 262 / 4%);
+}
+
+@layer base {
+  button,
+  a,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
 }

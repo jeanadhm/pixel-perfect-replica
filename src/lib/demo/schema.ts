@@ -36,6 +36,7 @@ const measurementSchema = z.object({
   notes: text,
 });
 const keyword = z.object({
+  siteId: text.optional(),
   id: text,
   term: text,
   family: text,
@@ -53,6 +54,7 @@ const keyword = z.object({
   measurements: z.array(measurementSchema).optional(),
 });
 const prompt = z.object({
+  siteId: text.optional(),
   id: text,
   question: text,
   category: text,
@@ -61,6 +63,7 @@ const prompt = z.object({
   frequency: z.enum(["Hebdomadaire", "Bimensuelle", "Mensuelle"]),
 });
 const test = z.object({
+  siteId: text.optional(),
   id: text,
   promptId: text,
   date: text,
@@ -83,6 +86,7 @@ const test = z.object({
   evidenceUrl: text.optional(),
 });
 const action = z.object({
+  siteId: text.optional(),
   id: text,
   title: text,
   description: text,
@@ -110,6 +114,7 @@ const action = z.object({
   proofUrl: text.optional(),
 });
 const page = z.object({
+  siteId: text.optional(),
   id: text,
   name: text,
   url: text,
@@ -139,6 +144,7 @@ const page = z.object({
   geoContent: z.boolean(),
 });
 const lead = z.object({
+  siteId: text.optional(),
   id: text,
   company: text,
   source: z.enum(["SEO", "GEO", "Direct", "Référent"]),
@@ -150,6 +156,7 @@ const lead = z.object({
   value: number,
 });
 const backlink = z.object({
+  siteId: text.optional(),
   id: text,
   domain: text,
   source: text,
@@ -161,6 +168,7 @@ const backlink = z.object({
   quality: z.enum(["Excellente", "Bonne", "Moyenne", "Faible"]),
 });
 const competitor = z.object({
+  siteId: text.optional(),
   id: text,
   name: text,
   site: text,

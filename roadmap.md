@@ -10,4 +10,4 @@
 - [ ] Valider visuellement les rendus ordinateur et mobile (navigateur automatisé indisponible).
 - [ ] Reprendre exactement les classeurs SEO V2 et GEO V1 lorsqu’ils seront fournis (le PDF ne contient pas leurs listes complètes).
 - [ ] Valider les URL, les rôles et les échéances proposés avec l’équipe AMBS.
-- [ ] Connecter le backend partagé, l’authentification et les sources de données réelles via les mécanismes Lovable.
+- [ ] Connecter le backend partagé, l’authentification et les sources de données réelles via les intégrations appropriées.

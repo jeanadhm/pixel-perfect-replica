@@ -1,3 +1,5 @@
+import { PUBLIC_PAGES } from "@/lib/demo/public-pages";
+import { SITES, siteLabel } from "@/lib/demo/sites";
 import {
   Dialog,
   DialogContent,
@@ -82,7 +84,10 @@ function PagesPage() {
             render: (p) => (
               <button className="min-w-56 text-left" onClick={() => setSelected(p.id)}>
                 <span className="font-semibold hover:text-primary">{p.name}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">{p.type}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {siteLabel(p.siteId ?? "ambs")} · {p.type}
+                </span>
+                <span className="mt-1 block max-w-72 truncate text-xs text-primary">{p.url}</span>
               </button>
             ),
           },
@@ -131,6 +136,7 @@ function PagesPage() {
 function PageEditor({ page }: { page: SitePage }) {
   const { update } = useDemo();
   const [draft, setDraft] = useState(page);
+  const observed = PUBLIC_PAGES.find((p) => p.url === page.url);
   return (
     <>
       <SheetHeader>
@@ -139,6 +145,14 @@ function PageEditor({ page }: { page: SitePage }) {
           Préparation locale : ces modifications ne publient rien sur le site AMBS.
         </SheetDescription>
       </SheetHeader>
+      {observed && (
+        <div className="mt-5 rounded-lg border bg-muted/40 p-3 text-xs leading-6">
+          <strong>Observation publique du 11/11/2026 · HTTP {observed.status}</strong>
+          <p>Title : {observed.title || "Non relevé"}</p>
+          <p>H1 : {observed.h1 || "Absent du HTML initial ; rendu JavaScript à vérifier"}</p>
+          <p>Les statistiques et contrôles de la démonstration sont fictifs.</p>
+        </div>
+      )}
       <div className="my-5 grid grid-cols-2 gap-4">
         <Field label="URL">
           <a
@@ -300,11 +314,11 @@ function PageEditor({ page }: { page: SitePage }) {
 }
 
 function NewPageDialog() {
-  const { update, families, pages } = useDemo();
+  const { update, families, pages, siteScope } = useDemo();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState({
     name: "",
-    url: "https://ambs-agency.com/",
+    url: `${SITES.find((s) => s.id === siteScope)?.url ?? "https://ambs-agency.com"}/`,
     type: "Page solution" as SitePage["type"],
     family: families[0] ?? "",
     mainKeyword: "",

@@ -12,13 +12,13 @@ export const Route = createFileRoute("/seo")({
   component: SeoPage,
 });
 function SeoPage() {
-  const { period, keywords, pages, workspace } = useDemo();
+  const { period, keywords, pages, workspace, siteScope } = useDemo();
   const days = PERIOD_DAYS[period],
-    now = windowStats(days),
-    prev = windowStats(days, days);
+    now = windowStats(days, 0, siteScope),
+    prev = windowStats(days, days, siteScope);
   const compare = prev.slice.length === now.slice.length;
   const buckets = positionBuckets(keywords),
-    data = seriesFor(days);
+    data = seriesFor(days, siteScope);
   if (workspace === "ambs") return <WorkspaceOverview seo />;
   return (
     <div className="space-y-6">
