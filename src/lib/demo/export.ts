@@ -21,7 +21,7 @@ export function exportCsv(name: string, rows: Record<string, unknown>[]) {
 export async function createReportPdf(
   title: string,
   sections: { heading: string; lines: string[] }[],
-  label = "DONNÉES DE DÉMONSTRATION",
+  label = "SUIVI DOCUMENTÉ",
 ) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF();
@@ -67,7 +67,7 @@ export async function createReportPdf(
 export async function exportPdf(
   title: string,
   sections: { heading: string; lines: string[] }[],
-  label = "DONNÉES DE DÉMONSTRATION",
+  label = "SUIVI DOCUMENTÉ",
 ) {
   const doc = await createReportPdf(title, sections, label);
   doc.save(`${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`);

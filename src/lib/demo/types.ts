@@ -18,6 +18,8 @@ export interface KeywordPlan {
   updatedAt: string;
 }
 export interface KeywordMeasurement {
+  startDate?: string | undefined;
+  endDate?: string | undefined;
   id: string;
   date: string;
   position: number | null;
@@ -177,6 +179,11 @@ export interface Competitor {
 }
 
 export interface Lead {
+  sourceSystem?: string | undefined;
+  sourceRecordId?: string | undefined;
+  evidenceUrl?: string | undefined;
+  attributionEvidence?: string | undefined;
+  importedAt?: string | undefined;
   siteId?: string | undefined;
   id: string;
   company: string;

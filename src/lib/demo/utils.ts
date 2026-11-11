@@ -1,6 +1,6 @@
 import type { Keyword, KwStatus } from "./types";
 import type { SiteScope } from "./sites";
-import { daily, TODAY } from "./seed";
+
 
 export const nf = (n: number | null, d = 0) =>
   n === null
@@ -51,68 +51,5 @@ export function positionBuckets(kws: Keyword[]) {
   return Object.entries(b).map(([name, value]) => ({ name, value }));
 }
 
-export function windowStats(days: number, offset = 0, scope: SiteScope = "all") {
-  const end = daily.length - offset;
-  const shares = { ambs: 0.42, leads: 0.28, dialagent: 0.22, factory: 0.08 };
-  const distribute = (value: number) => {
-    const ambs = Math.floor(value * shares.ambs),
-      leads = Math.floor(value * shares.leads),
-      dialagent = Math.floor(value * shares.dialagent);
-    return { ambs, leads, dialagent, factory: value - ambs - leads - dialagent };
-  };
-  const slice = daily
-    .slice(Math.max(0, end - days), end)
-    .map((p) =>
-      scope === "all"
-        ? p
-        : {
-            ...p,
-            impressions: distribute(p.impressions)[scope],
-            clicks: distribute(p.clicks)[scope],
-            sessions: distribute(p.sessions)[scope],
-            firstPage: distribute(p.firstPage)[scope],
-          },
-    );
-  const impressions = slice.reduce((s, p) => s + p.impressions, 0);
-  const clicks = slice.reduce((s, p) => s + p.clicks, 0);
-  const sessions = slice.reduce((s, p) => s + p.sessions, 0);
-  const position = slice.reduce((s, p) => s + p.position, 0) / (slice.length || 1);
-  return {
-    slice,
-    impressions,
-    clicks,
-    sessions,
-    ctr: (clicks / (impressions || 1)) * 100,
-    position,
-    conversions: Math.round(sessions * 0.021),
-  };
-}
 export const change = (a: number, b: number) => (b ? ((a - b) / b) * 100 : 0);
-export const daysAgo = (iso: string) => (TODAY.getTime() - new Date(iso).getTime()) / 86400000;
-
-// Aggregate daily points to weekly/monthly buckets for long periods.
-export function seriesFor(days: number, scope: SiteScope = "all") {
-  const s = windowStats(days, 0, scope).slice;
-  if (days <= 30)
-    return s.map((p) => ({
-      ...p,
-      label: new Date(p.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }),
-    }));
-  const size = days <= 90 ? 7 : 30;
-  const out = [];
-  for (let i = 0; i < s.length; i += size) {
-    const g = s.slice(i, i + size);
-    out.push({
-      label: new Date(g[0]?.date ?? s[i]?.date ?? Date.now()).toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "short",
-      }),
-      impressions: g.reduce((a, p) => a + p.impressions, 0),
-      clicks: g.reduce((a, p) => a + p.clicks, 0),
-      firstPage: Math.round(g.reduce((a, p) => a + p.firstPage, 0) / g.length),
-      geo: Math.round((g.reduce((a, p) => a + p.geo, 0) / g.length) * 10) / 10,
-      position: Math.round((g.reduce((a, p) => a + p.position, 0) / g.length) * 10) / 10,
-    });
-  }
-  return out;
-}
+export const daysAgo = (iso: string) => (Date.now() - new Date(iso).getTime()) / 86400000;

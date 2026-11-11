@@ -3,7 +3,6 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { uid, useDemo } from "@/lib/demo/store";
 import { RECURRENCES, nextDueDate } from "@/lib/demo/workflow";
-import { OWNERS } from "@/lib/demo/seed";
 import type { Action } from "@/lib/demo/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +28,7 @@ export function NewActionDialog({
   trigger?: ReactNode;
   action?: Action;
 }) {
-  const { update, keywords, prompts, pages, actions, workspace } = useDemo();
+  const { update, keywords, prompts, pages, actions, workspace, members } = useDemo();
   const [open, setOpen] = useState(false);
   const blank = (): Action => ({
     id: "",
@@ -37,7 +36,7 @@ export function NewActionDialog({
     description: "",
     category: "SEO",
     priority: "Moyenne",
-    owner: workspace === "ambs" ? "À attribuer" : (OWNERS[0] ?? "Sarah Benali"),
+    owner: "À attribuer",
     start: new Date().toISOString().slice(0, 10),
     due: "",
     status: "À faire",
@@ -86,17 +85,20 @@ export function NewActionDialog({
         </DialogHeader>
         <form
           className="space-y-4"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             if (!draft.title.trim()) return void toast.error("Le titre est obligatoire");
             if (draft.due && draft.due < draft.start)
               return void toast.error("L’échéance doit suivre la date de début");
             const saved = { ...draft, title: draft.title.trim(), id: action?.id ?? uid("act") };
-            update("actions", (items) =>
-              action
-                ? items.map((item) => (item.id === action.id ? saved : item))
-                : [saved, ...items],
-            );
+            if (
+              !(await update("actions", (items) =>
+                action
+                  ? items.map((item) => (item.id === action.id ? saved : item))
+                  : [saved, ...items],
+              ))
+            )
+              return;
             toast.success(action ? "Action mise à jour" : "Action ajoutée");
             setOpen(false);
           }}
@@ -150,7 +152,7 @@ export function NewActionDialog({
                       "À attribuer",
                       draft.owner,
                       ...actions.map((a) => a.owner),
-                      ...(workspace === "demo" ? OWNERS : []),
+                      ...members.map((m) => m.name),
                     ]),
                   ]}
                   value={draft.owner}
@@ -355,7 +357,7 @@ export function NewActionDialog({
                   type="button"
                   variant="outline"
                   disabled={actions.some((a) => a.parentActionId === action.id)}
-                  onClick={() => {
+                  onClick={async () => {
                     if (actions.some((a) => a.parentActionId === action.id)) return;
                     const next = {
                       ...action,
@@ -368,7 +370,7 @@ export function NewActionDialog({
                       proofUrl: "",
                       comments: "",
                     };
-                    update("actions", (items) => [next, ...items]);
+                    if (!(await update("actions", (items) => [next, ...items]))) return;
                     toast.success("Prochaine occurrence créée");
                     setOpen(false);
                   }}

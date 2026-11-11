@@ -1,4 +1,5 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link } from "@/components/navigation";
+import { usePathname } from "next/navigation";
 import { LogOut, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -16,25 +17,23 @@ import {
 } from "@/components/ui/sidebar";
 import { useDemo } from "@/lib/demo/store";
 import { NAV } from "./nav";
-import logo from "@/assets/ambs-logo.png";
-import feather from "@/assets/ambs-feather.png";
 
 export function AppSidebar() {
-  const { workspace } = useDemo();
+  const { workspace, user, logout } = useDemo();
   const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = !isMobile && state === "collapsed";
-  const path = useRouterState({ select: (r) => r.location.pathname });
+  const path = usePathname();
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-4">
         {collapsed ? (
           <div className="grid size-8 place-items-center rounded-md bg-card p-0.5">
-            <img src={feather} alt="AMBS" className="h-full object-contain" />
+            <img src="/ambs-feather.png" alt="AMBS" className="h-full object-contain" />
           </div>
         ) : (
           <div className="rounded-lg bg-card px-3 py-2">
-            <img src={logo} alt="AMBS Agency" className="mx-auto h-11 object-contain" />
+            <img src="/ambs-logo.png" alt="AMBS Agency" className="mx-auto h-11 object-contain" />
             <div className="mt-0.5 text-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Visibility Hub · SEO & GEO
             </div>
@@ -87,25 +86,21 @@ export function AppSidebar() {
         )}
         <div className="flex items-center gap-2.5">
           <div className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
-            {workspace === "demo" ? "SB" : "AM"}
+            {user?.name.slice(0, 2).toUpperCase() ?? "AM"}
           </div>
           {!collapsed && (
             <>
               <div className="min-w-0 flex-1 leading-tight">
                 <div className="truncate text-sm font-semibold text-sidebar-accent-foreground">
-                  {workspace === "demo" ? "Sarah Benali" : "Équipe AMBS"}
+                  {user?.name ?? "Équipe AMBS"}
                 </div>
                 <div className="truncate text-[11px] text-sidebar-foreground/70">
-                  {workspace === "demo" ? "AMBS Agency · Head of Growth" : "Pilotage SEO & GEO"}
+                  {user?.role ?? "Pilotage SEO & GEO"}
                 </div>
               </div>
               <button
-                aria-label="Informations sur le compte local"
-                onClick={() =>
-                  toast("Espace local", {
-                    description: "Aucun compte distant ni session authentifiée n’est connecté.",
-                  })
-                }
+                aria-label="Se déconnecter"
+                onClick={() => void logout()}
                 className="rounded p-1.5 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               >
                 <LogOut className="size-4" />

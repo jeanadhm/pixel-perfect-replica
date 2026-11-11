@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  PlugZap,
   Globe2,
   BarChart3,
   Bot,
@@ -17,7 +18,7 @@ import {
 
 export interface NavItem {
   title: string;
-  /** Route path (see src/routes); kept as `string` so <Link to={…}> stays type-checkable. */
+  /** Next.js route path (see src/app). */
   url: string;
   icon: LucideIcon;
 }
@@ -55,5 +56,11 @@ export const NAV: NavGroup[] = [
       { title: "Rapports", url: "/rapports", icon: FileBarChart },
     ],
   },
-  { group: "Paramètres", items: [{ title: "Paramètres", url: "/parametres", icon: Settings }] },
+  {
+    group: "Équipe & données",
+    items: [
+      { title: "Connexions", url: "/connexions", icon: PlugZap },
+      { title: "Équipe & paramètres", url: "/parametres", icon: Settings },
+    ],
+  },
 ];

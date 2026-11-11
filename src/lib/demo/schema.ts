@@ -27,9 +27,11 @@ const keywordPlanSchema = z.object({
   updatedAt: text,
 });
 const measurementSchema = z.object({
+  startDate: text.optional(),
+  endDate: text.optional(),
   id: text,
   date: text,
-  position: number.min(1).max(100).nullable(),
+  position: number.min(1).nullable(),
   impressions: number.min(0),
   clicks: number.min(0),
   source: text,
@@ -144,6 +146,11 @@ const page = z.object({
   geoContent: z.boolean(),
 });
 const lead = z.object({
+  sourceSystem: text.optional(),
+  sourceRecordId: text.optional(),
+  evidenceUrl: text.optional(),
+  attributionEvidence: text.optional(),
+  importedAt: text.optional(),
   siteId: text.optional(),
   id: text,
   company: text,

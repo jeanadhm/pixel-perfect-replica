@@ -27,7 +27,7 @@ function Editor({
   title: string;
   trigger?: ReactNode;
   children: ReactNode;
-  save: (data: FormData) => void;
+  save: (data: FormData) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -43,9 +43,9 @@ function Editor({
         </DialogHeader>
         <form
           className="space-y-3"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            save(new FormData(e.currentTarget));
+            if (!(await save(new FormData(e.currentTarget)))) return;
             setOpen(false);
             toast.success("Relevé enregistré");
           }}
@@ -90,7 +90,7 @@ function BacklinkEditor({ item }: { item?: Backlink }) {
           status: str(data, "status") as Backlink["status"],
           quality: str(data, "quality") as Backlink["quality"],
         };
-        update("backlinks", (items) =>
+        return update("backlinks", (items) =>
           item ? items.map((x) => (x.id === item.id ? record : x)) : [record, ...items],
         );
       }}
@@ -204,7 +204,7 @@ function CompetitorEditor({ item }: { item?: Competitor }) {
             .map((t) => t.trim())
             .filter(Boolean),
         };
-        update("competitors", (items) =>
+        return update("competitors", (items) =>
           item ? items.map((x) => (x.id === item.id ? record : x)) : [record, ...items],
         );
       }}

@@ -1,4 +1,4 @@
-import { useRouterState } from "@tanstack/react-router";
+import { usePathname } from "next/navigation";
 import { Bell, Download } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,12 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PERIOD_LABEL, PERIOD_DAYS, useDemo, type Period } from "@/lib/demo/store";
-import { TODAY } from "@/lib/demo/seed";
 import { exportCsv } from "@/lib/demo/export";
-import { kwStatus, kwTrend, windowStats } from "@/lib/demo/utils";
+import { kwStatus, kwTrend } from "@/lib/demo/utils";
 import { keywordExportRows } from "@/lib/demo/workflow";
 import { NAV } from "./nav";
 export function AppHeader() {
-  const path = useRouterState({ select: (r) => r.location.pathname });
+  const path = usePathname();
   const {
     period,
     setPeriod,
@@ -32,13 +31,15 @@ export function AppHeader() {
     siteScope,
     backlinks,
     competitors,
+    metrics,
+    user,
   } = useDemo();
   const current = NAV.flatMap((g) => g.items.map((i) => ({ ...i, group: g.group }))).find(
     (i) => i.url === path,
   );
   const regressions = keywords.filter((k) => kwTrend(k) < 0).length;
   const due = actions.filter((a) => {
-    const time = new Date(a.due).getTime() - (workspace === "demo" ? TODAY.getTime() : Date.now());
+    const time = new Date(a.due).getTime() - Date.now();
     return a.status !== "Terminé" && time >= 0 && time <= 2 * 86400000;
   }).length;
   const notifs = [
@@ -76,7 +77,7 @@ export function AppHeader() {
           plateforme: t.platform,
           date: t.date,
           statut: t.status,
-          origine: t.origin ?? "Simulation",
+          origine: t.origin ?? "Saisie manuelle",
           reponse: t.response,
         })),
       );
@@ -111,7 +112,7 @@ export function AppHeader() {
     if (path === "/" || path === "/seo")
       return exportCsv(
         "trafic-seo",
-        windowStats(PERIOD_DAYS[period], 0, siteScope).slice.map((p) => ({ ...p })),
+        (metrics?.search ?? []).map((p) => ({ ...p })),
       );
     return exportCsv("mots-cles", keywordExportRows(keywords));
   };
@@ -127,7 +128,7 @@ export function AppHeader() {
         <span className="truncate font-semibold">{current?.title ?? "Page"}</span>
       </nav>
       <div className="ml-auto flex items-center gap-2">
-        {workspace === "demo" && ["/", "/seo", "/rapports"].includes(path) ? (
+        {["/", "/seo", "/rapports"].includes(path) ? (
           <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
             <SelectTrigger
               aria-label="Période d’analyse SEO"
@@ -148,7 +149,7 @@ export function AppHeader() {
             {workspace === "demo" ? "Démo locale" : "Suivi AMBS"}
           </span>
         )}
-        {!["/parametres", "/rapports", "/sites"].includes(path) && (
+        {!["/parametres", "/rapports", "/sites", "/connexions"].includes(path) && (
           <Button
             variant="outline"
             size="sm"
@@ -178,9 +179,9 @@ export function AppHeader() {
         </Popover>
         <div
           className="grid size-8 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
-          aria-label={workspace === "demo" ? "Profil de démonstration Sarah Benali" : "Équipe AMBS"}
+          aria-label={user?.name ?? "Équipe AMBS"}
         >
-          {workspace === "demo" ? "SB" : "AM"}
+          {user?.name.slice(0, 2).toUpperCase() ?? "AM"}
         </div>
       </div>
     </header>

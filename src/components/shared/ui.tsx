@@ -9,7 +9,7 @@ export function DemoBadge() {
   return (
     <Badge variant={workspace === "demo" ? "demo" : "info"} className="gap-1">
       <FlaskConical className="size-3" />
-      {workspace === "demo" ? "Données de démonstration" : "Espace AMBS · suivi local"}
+      {"Suivi documenté"}
     </Badge>
   );
 }

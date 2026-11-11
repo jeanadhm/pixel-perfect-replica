@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { uid, useDemo } from "@/lib/demo/store";
-import { PLATFORMS } from "@/lib/demo/seed";
+import { PLATFORMS } from "@/lib/demo/constants";
 import type { GeoPrompt, GeoTest } from "@/lib/demo/types";
 import { FormField, NativeSelect } from "@/components/shared/FormField";
 import { Input } from "@/components/ui/input";
@@ -50,16 +50,22 @@ export function GeoRecordDialog({ prompt, onSaved }: { prompt?: GeoPrompt; onSav
           <DialogTitle>Enregistrer une observation GEO</DialogTitle>
           <DialogDescription>
             Copiez une réponse que vous avez réellement observée. Ce formulaire ne lance aucune
-            requête IA ; les saisies manuelles restent séparées des simulations.
+            requête IA ; chaque résultat doit conserver sa source pour pouvoir être vérifié.
           </DialogDescription>
         </DialogHeader>
         <form
           className="space-y-4"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             const selected = prompts.find((p) => p.id === draft.promptId);
-            if (!selected || !draft.response.trim())
-              return void toast.error("Choisissez un prompt et copiez sa réponse");
+            if (
+              !selected ||
+              draft.response.trim().length < 40 ||
+              draft.response.trim().toLowerCase() === selected.question.trim().toLowerCase()
+            )
+              return void toast.error(
+                "Choisissez un prompt et copiez une vraie réponse complète (40 caractères minimum), pas la question",
+              );
             if (!draft.date || draft.date > new Date().toISOString().slice(0, 10))
               return void toast.error("La date du test ne peut pas être future");
             const accuracy = draft.mentioned ? draft.accuracy : "—";
@@ -95,12 +101,15 @@ export function GeoRecordDialog({ prompt, onSaved }: { prompt?: GeoPrompt; onSav
                       ? "Mentionnée sans recommandation"
                       : "Non mentionnée",
             };
-            update("geoTests", (tests) =>
-              [test, ...tests].sort((a, b) => b.date.localeCompare(a.date)),
-            );
+            if (
+              !(await update("geoTests", (tests) =>
+                [test, ...tests].sort((a, b) => b.date.localeCompare(a.date)),
+              ))
+            )
+              return;
             setOpen(false);
             toast.success("Observation GEO enregistrée", {
-              description: "Saisie manuelle conservée localement.",
+              description: "Observation enregistrée dans l’espace partagé.",
             });
             onSaved?.();
           }}
@@ -234,12 +243,13 @@ export function GeoRecordDialog({ prompt, onSaved }: { prompt?: GeoPrompt; onSav
               />
             )}
           </FormField>
-          <FormField label="Lien vers la réponse ou la preuve">
+          <FormField label="Lien HTTPS vers la réponse ou la preuve *">
             {(id) => (
               <Input
                 id={id}
                 type="url"
-                pattern="https?://.*"
+                pattern="https://.*"
+                required
                 value={draft.evidenceUrl}
                 onChange={(e) => setDraft({ ...draft, evidenceUrl: e.target.value })}
               />

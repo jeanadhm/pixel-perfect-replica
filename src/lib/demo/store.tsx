@@ -1,18 +1,20 @@
+"use client";
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { stateSchema, type DemoState } from "./schema";
-import { createAmbsState } from "./reference";
-import { createPortfolioState, scopeState } from "./portfolio";
+import { type DemoState } from "./schema";
+import { emptyState, scopeState } from "./scope";
 import { SITES, siteForUrl, type SiteScope } from "./sites";
+import { api } from "../api/client";
+import type { Member, Connections, PublicObservation, Metrics } from "../api/types";
 import { toast } from "sonner";
-
 export type Period = "7j" | "30j" | "90j" | "12m";
 export const PERIOD_DAYS: Record<Period, number> = { "7j": 7, "30j": 30, "90j": 90, "12m": 365 };
 export const PERIOD_LABEL: Record<Period, string> = {
@@ -21,157 +23,234 @@ export const PERIOD_LABEL: Record<Period, string> = {
   "90j": "90 derniers jours",
   "12m": "12 derniers mois",
 };
-
-type State = DemoState;
-const initial = createPortfolioState;
-
-// Persists demo edits in the browser; bump the key when the seed shape changes.
 export type Workspace = "ambs" | "demo";
-const KEYS: Record<Workspace, string> = { demo: "ambs-hub-demo-v2", ambs: "ambs-hub-workspace-v1" };
-const workspaceInitial = (workspace: Workspace) =>
-  workspace === "demo" ? initial() : createAmbsState();
-function readWorkspace(workspace: Workspace): State {
-  const base = workspaceInitial(workspace);
-  const raw = localStorage.getItem(KEYS[workspace]);
-  if (!raw) return base;
-  const parsed = stateSchema.safeParse({ ...base, ...JSON.parse(raw) });
-  if (parsed.success) return parsed.data;
-  toast.warning("Sauvegarde invalide : le référentiel initial a été restauré.");
-  return base;
-}
-
+type State = DemoState;
 interface Ctx extends State {
   siteScope: SiteScope;
-  setSiteScope: (scope: SiteScope) => void;
+  setSiteScope: (site: SiteScope) => void;
   setPeriod: (p: Period) => void;
-  update: <K extends keyof State>(key: K, fn: (v: State[K]) => State[K]) => void;
-  reset: () => void;
+  update: <K extends keyof State>(key: K, fn: (v: State[K]) => State[K]) => Promise<boolean>;
   storageAvailable: boolean;
   workspace: Workspace;
-  switchWorkspace: (workspace: Workspace) => void;
   snapshot: () => State;
-  restore: (input: unknown) => boolean;
+  user: Member | null;
+  members: Member[];
+  loading: boolean;
+  setupRequired: boolean;
+  production: boolean;
+  saving: boolean;
+  error: string;
+  refresh: () => Promise<void>;
+  logout: () => Promise<void>;
+  connections: Connections;
+  observations: PublicObservation[];
+  metrics: Metrics | null;
 }
-const StoreCtx = createContext<Ctx | null>(null);
-
+const Ctx = createContext<Ctx | null>(null);
 export function DemoStoreProvider({ children }: { children: ReactNode }) {
-  const [workspace, setWorkspace] = useState<Workspace>("demo");
-  const [state, setState] = useState<State>(() => workspaceInitial("demo"));
-  const [siteScope, setSiteScope] = useState<SiteScope>("all");
-  const [loaded, setLoaded] = useState(false);
-  const [storageAvailable, setStorageAvailable] = useState(true);
-
-  useEffect(() => {
+  const [state, setState] = useState<State>(emptyState),
+    [siteScope, setScope] = useState<SiteScope>("all");
+  const [user, setUser] = useState<Member | null>(null),
+    [members, setMembers] = useState<Member[]>([]),
+    [loading, setLoading] = useState(true),
+    [setupRequired, setSetup] = useState(false),
+    [production, setProduction] = useState(false),
+    [saving, setSaving] = useState(false),
+    [error, setError] = useState("");
+  const [connections, setConnections] = useState<Connections>({
+    googleConfigured: false,
+    googleConnected: false,
+    sites: [],
+    runs: [],
+  });
+  const [observations, setObservations] = useState<PublicObservation[]>([]),
+    [metrics, setMetrics] = useState<Metrics | null>(null);
+  const stateRef = useRef(state),
+    savedRef = useRef(state),
+    revision = useRef(0),
+    queue = useRef(Promise.resolve()),
+    generation = useRef(0),
+    pending = useRef(0);
+  const commit = (next: State) => {
+    stateRef.current = next;
+    setState(next);
+  };
+  const refresh = useCallback(async () => {
+    setError("");
     try {
-      const selected =
-        localStorage.getItem("ambs-hub-active-workspace-v2") === "ambs" ? "ambs" : "demo";
-      const scope = localStorage.getItem("ambs-hub-site-scope");
-      if (SITES.some((s) => s.id === scope)) setSiteScope(scope as SiteScope);
-      setWorkspace(selected);
-      setState(readWorkspace(selected));
-    } catch {
-      toast.warning("La sauvegarde locale est indisponible ou illisible.");
+      const session = await api<{
+        user: Member | null;
+        setupRequired: boolean;
+        production: boolean;
+      }>("/auth/session");
+      setUser(session.user);
+      setSetup(session.setupRequired);
+      setProduction(session.production);
+      if (!session.user) {
+        commit(emptyState());
+        return;
+      }
+      const [data, team, conn, publicPages] = await Promise.all([
+        api<{ state: State; revision: number }>("/workspace"),
+        api<{ users: Member[] }>("/users"),
+        api<Connections>("/integrations"),
+        api<{ pages: PublicObservation[] }>("/public-pages"),
+      ]);
+      revision.current = data.revision;
+      savedRef.current = data.state;
+      commit({ ...data.state, period: stateRef.current.period });
+      setMembers(team.users);
+      setConnections(conn);
+      setObservations(publicPages.pages);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Connexion au serveur impossible");
+    } finally {
+      setLoading(false);
     }
-    setLoaded(true);
   }, []);
   useEffect(() => {
-    if (!loaded) return;
+    void refresh();
     try {
-      localStorage.setItem(KEYS[workspace], JSON.stringify(state));
-      localStorage.setItem("ambs-hub-active-workspace-v2", workspace);
-      setStorageAvailable(true);
-    } catch {
-      setStorageAvailable(false);
-    }
-  }, [state, loaded, workspace]);
-
+      const scope = localStorage.getItem("ambs-real-site");
+      if (SITES.some((s) => s.id === scope)) setScope(scope as SiteScope);
+    } catch {}
+  }, [refresh]);
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    setMetrics(null);
+    api<Metrics>(`/metrics?site=${siteScope}&days=${PERIOD_DAYS[state.period]}`)
+      .then((data) => {
+        if (active) setMetrics(data);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user, siteScope, state.period, connections]);
   const update = useCallback<Ctx["update"]>(
-    (key, fn) =>
-      setState((s) => {
-        let next = fn(s[key]);
-        if (Array.isArray(next) && key !== "families" && key !== "audits") {
-          const oldIds = new Set((s[key] as { id: string }[]).map((item) => item.id));
-          next = next.map((item) =>
-            typeof item === "object" &&
-            item &&
-            "id" in item &&
-            !oldIds.has(item.id) &&
-            (!("siteId" in item) || !item.siteId)
-              ? {
-                  ...item,
-                  siteId:
-                    ("url" in item && typeof item.url === "string"
-                      ? siteForUrl(item.url)?.id
-                      : undefined) ??
-                    ("target" in item && typeof item.target === "string"
-                      ? siteForUrl(item.target)?.id
-                      : undefined) ??
-                    ("pageId" in item
-                      ? s.pages.find((p) => p.id === item.pageId)?.siteId
-                      : undefined) ??
-                    ("promptId" in item
-                      ? s.prompts.find((p) => p.id === item.promptId)?.siteId
-                      : undefined) ??
-                    (siteScope === "all" ? "ambs" : siteScope),
-                }
-              : item,
-          ) as typeof next;
-        }
-        return { ...s, [key]: next };
-      }),
-    [siteScope],
+    async (key, fn) => {
+      if (!user || user.role === "viewer") {
+        toast.error("Un compte en écriture est requis.");
+        return false;
+      }
+      if (key === "period") {
+        commit({ ...stateRef.current, period: fn(stateRef.current.period as never) as Period });
+        return true;
+      }
+      let items = fn(stateRef.current[key]);
+      if (Array.isArray(items) && key !== "families" && key !== "audits") {
+        items = items.map((item: any) =>
+          item?.id && !item.siteId
+            ? {
+                ...item,
+                siteId:
+                  siteForUrl(item.url ?? item.target ?? "")?.id ??
+                  stateRef.current.pages.find((p) => p.id === item.pageId)?.siteId ??
+                  stateRef.current.prompts.find((p) => p.id === item.promptId)?.siteId ??
+                  (siteScope === "all" ? "ambs" : siteScope),
+              }
+            : item,
+        ) as typeof items;
+      }
+      commit({ ...stateRef.current, [key]: items });
+      pending.current++;
+      setSaving(true);
+      const epoch = generation.current;
+      let ok = false;
+      const work = queue.current
+        .then(async () => {
+          if (epoch !== generation.current) return;
+          try {
+            const result = await api<{ revision: number }>(`/workspace/${key}`, {
+              method: "PUT",
+              body: JSON.stringify({ revision: revision.current, items }),
+            });
+            revision.current = result.revision;
+            savedRef.current = { ...savedRef.current, [key]: items };
+            ok = true;
+            setError("");
+          } catch (e) {
+            generation.current++;
+            const message = e instanceof Error ? e.message : "Sauvegarde refusée";
+            setError(message);
+            toast.error(message);
+            try {
+              const fresh = await api<{ state: State; revision: number }>("/workspace");
+              revision.current = fresh.revision;
+              savedRef.current = fresh.state;
+              commit(fresh.state);
+            } catch {
+              commit(savedRef.current);
+            }
+          }
+        })
+        .finally(() => {
+          pending.current--;
+          if (!pending.current) setSaving(false);
+        });
+      queue.current = work.catch(() => {});
+      await work;
+      return ok;
+    },
+    [siteScope, user],
   );
   const value = useMemo<Ctx>(
     () => ({
       ...scopeState(state, siteScope),
       siteScope,
       setSiteScope: (scope) => {
-        setSiteScope(scope);
+        setScope(scope);
         try {
-          localStorage.setItem("ambs-hub-site-scope", scope);
-        } catch {
-          /* State remains available in memory. */
-        }
+          localStorage.setItem("ambs-real-site", scope);
+        } catch {}
       },
-      storageAvailable,
-      workspace,
-      snapshot: () => state,
-      restore: (input) => {
-        const parsed = stateSchema.safeParse(input);
-        if (!parsed.success) return false;
-        setState(parsed.data);
-        return true;
-      },
-      switchWorkspace: (next) => {
-        if (next === workspace) return;
-        try {
-          localStorage.setItem(KEYS[workspace], JSON.stringify(state));
-          setState(readWorkspace(next));
-        } catch {
-          toast.error(
-            "Impossible de changer d’espace sans sauvegarder vos modifications. Exportez une sauvegarde depuis Paramètres.",
-          );
-          return;
-        }
-        setWorkspace(next);
-      },
-      setPeriod: (period) => setState((s) => ({ ...s, period })),
+      setPeriod: (period) => commit({ ...stateRef.current, period }),
       update,
-      reset: () => {
-        setState(workspaceInitial(workspace));
+      storageAvailable: !error,
+      workspace: "ambs",
+      snapshot: () => stateRef.current,
+      user,
+      members,
+      loading,
+      setupRequired,
+      production,
+      saving,
+      error,
+      refresh,
+      logout: async () => {
+        await api("/auth/logout", { method: "POST" });
+        setUser(null);
+        commit(emptyState());
       },
+      connections,
+      observations,
+      metrics,
     }),
-    [state, update, storageAvailable, workspace, siteScope],
+    [
+      state,
+      siteScope,
+      update,
+      user,
+      members,
+      loading,
+      setupRequired,
+      production,
+      saving,
+      error,
+      refresh,
+      connections,
+      observations,
+      metrics,
+    ],
   );
-
-  return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
-
 export function useDemo() {
-  const c = useContext(StoreCtx);
-  if (!c) throw new Error("useDemo outside provider");
-  return c;
+  const value = useContext(Ctx);
+  if (!value) throw new Error("Workspace provider missing");
+  return value;
 }
-
-export const uid = (p: string) =>
-  `${p}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+export const uid = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;

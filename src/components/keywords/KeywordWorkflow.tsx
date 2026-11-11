@@ -2,7 +2,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { uid, useDemo } from "@/lib/demo/store";
-import { OWNERS } from "@/lib/demo/seed";
 import type { Keyword, KeywordPlan } from "@/lib/demo/types";
 import {
   KEYWORD_STAGES,
@@ -30,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 
 export function KeywordPlanBoard({ onOpen }: { onOpen: (id: string) => void }) {
-  const { keywords } = useDemo();
+  const { keywords, members } = useDemo();
   const [query, setQuery] = useState("");
   const [owner, setOwner] = useState("Tous les responsables");
   const [stage, setStage] = useState("Toutes les étapes");
@@ -53,7 +52,7 @@ export function KeywordPlanBoard({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="w-full sm:w-60">
           <NativeSelect
             aria-label="Responsable du mot-clé"
-            options={["Tous les responsables", ...OWNERS]}
+            options={["Tous les responsables", "À attribuer", ...members.map((m) => m.name)]}
             value={owner}
             onChange={(e) => setOwner(e.target.value)}
           />
@@ -115,7 +114,7 @@ export function KeywordPlanBoard({ onOpen }: { onOpen: (id: string) => void }) {
   );
 }
 export function KeywordWorkflow({ keyword }: { keyword: Keyword }) {
-  const { update, actions, workspace, keywords, families } = useDemo();
+  const { update, actions, workspace, keywords, families, members } = useDemo();
   const [details, setDetails] = useState({
     term: keyword.term,
     family: keyword.family,
@@ -134,15 +133,18 @@ export function KeywordWorkflow({ keyword }: { keyword: Keyword }) {
         </p>
         <form
           className="space-y-4"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             if (
               !details.term.trim() ||
-              keywords.some(
-                (k) =>
-                  k.id !== keyword.id &&
-                  k.term.toLocaleLowerCase("fr") === details.term.trim().toLocaleLowerCase("fr"),
-              )
+              (details.term.trim() !== keyword.term &&
+                keywords.some(
+                  (k) =>
+                    k.id !== keyword.id &&
+                    k.siteId === keyword.siteId &&
+                    k.url === keyword.url &&
+                    k.term.toLocaleLowerCase("fr") === details.term.trim().toLocaleLowerCase("fr"),
+                ))
             )
               return void toast.error("Expression vide ou déjà suivie");
             if (plan.stage === "Intégré" && (!plan.contentUrl.trim() || !plan.placements.length))
@@ -150,22 +152,25 @@ export function KeywordWorkflow({ keyword }: { keyword: Keyword }) {
                 "Indiquez la page et au moins un emplacement pour marquer ce mot-clé comme intégré",
               );
             const saved = { ...plan, updatedAt: new Date().toISOString() };
-            update("keywords", (items) =>
-              items.map((k) =>
-                k.id === keyword.id
-                  ? {
-                      ...k,
-                      term: details.term.trim(),
-                      family: details.family,
-                      intent: details.intent,
-                      volume: details.volume === "" ? null : Number(details.volume),
-                      difficulty: details.difficulty === "" ? null : Number(details.difficulty),
-                      plan: saved,
-                      url: saved.contentUrl || k.url,
-                    }
-                  : k,
-              ),
-            );
+            if (
+              !(await update("keywords", (items) =>
+                items.map((k) =>
+                  k.id === keyword.id
+                    ? {
+                        ...k,
+                        term: details.term.trim(),
+                        family: details.family,
+                        intent: details.intent,
+                        volume: details.volume === "" ? null : Number(details.volume),
+                        difficulty: details.difficulty === "" ? null : Number(details.difficulty),
+                        plan: saved,
+                        url: saved.contentUrl || k.url,
+                      }
+                    : k,
+                ),
+              ))
+            )
+              return;
             setPlan(saved);
             toast.success("Plan d’intégration enregistré");
           }}
@@ -262,7 +267,7 @@ export function KeywordWorkflow({ keyword }: { keyword: Keyword }) {
                     ...new Set([
                       "Non attribué",
                       ...actions.map((a) => a.owner),
-                      ...(workspace === "demo" ? OWNERS : []),
+                      ...members.map((m) => m.name),
                     ]),
                   ]}
                   value={plan.owner || "Non attribué"}
@@ -395,7 +400,7 @@ function KeywordMeasurements({ keyword }: { keyword: Keyword }) {
   const observations = keyword.measurements ?? [];
   const latest = observations.at(-1),
     prior = observations.at(-2);
-  const save = () => {
+  const save = async () => {
     const measurement = {
       id: uid("measurement"),
       date: form.date,
@@ -421,9 +426,12 @@ function KeywordMeasurements({ keyword }: { keyword: Keyword }) {
       return void toast.error(
         "Vérifiez les clics et impressions : nombres entiers positifs, clics ≤ impressions",
       );
-    update("keywords", (items) =>
-      items.map((k) => (k.id === keyword.id ? withMeasurement(k, measurement) : k)),
-    );
+    if (
+      !(await update("keywords", (items) =>
+        items.map((k) => (k.id === keyword.id ? withMeasurement(k, measurement) : k)),
+      ))
+    )
+      return;
     setReplaceDate(null);
     toast.success("Relevé manuel enregistré");
   };
@@ -432,7 +440,7 @@ function KeywordMeasurements({ keyword }: { keyword: Keyword }) {
       <h3 className="mb-2 font-semibold">Mesurer les améliorations</h3>
       <p className="mb-4 text-xs leading-relaxed text-muted-foreground">
         Saisissez des relevés portant sur la même durée, le même pays et le même appareil. La
-        comparaison utilise les deux derniers relevés manuels, jamais les positions fictives
+        comparaison utilise les deux derniers relevés disponibles, avec leur source et leur période
         initiales.
       </p>
       {latest && prior ? (
@@ -617,7 +625,7 @@ export function BulkKeywordsDialog() {
         </DialogHeader>
         <form
           className="space-y-4"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             if (!preview.terms.length) return;
             const additions: Keyword[] = preview.terms.map((term) => ({
@@ -644,7 +652,7 @@ export function BulkKeywordsDialog() {
                 updatedAt: new Date().toISOString(),
               },
             }));
-            update("keywords", (items) => [...additions, ...items]);
+            if (!(await update("keywords", (items) => [...additions, ...items]))) return;
             toast.success(`${additions.length} mots-clés ajoutés au plan`);
             setText("");
             setOpen(false);
