@@ -6,6 +6,8 @@ import {
   SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
 } from "@/components/ui/sidebar";
 import { NAV } from "./nav";
+import logo from "@/assets/ambs-logo.png.asset.json";
+import feather from "@/assets/ambs-feather.png.asset.json";
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -15,15 +17,14 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-4">
-        <div className="flex items-center gap-2.5">
-          <div className="grid size-8 shrink-0 place-items-center rounded-md bg-sidebar-primary text-xs font-extrabold text-sidebar-primary-foreground">AM</div>
-          {!collapsed && (
-            <div className="min-w-0 leading-tight">
-              <div className="truncate text-sm font-bold text-sidebar-accent-foreground">AMBS Visibility Hub</div>
-              <div className="truncate text-[11px] text-sidebar-foreground/70">SEO & GEO Management</div>
-            </div>
-          )}
-        </div>
+        {collapsed ? (
+          <div className="grid size-8 place-items-center rounded-md bg-card p-0.5"><img src={feather.url} alt="AMBS" className="h-full object-contain" /></div>
+        ) : (
+          <div className="rounded-lg bg-card px-3 py-2">
+            <img src={logo.url} alt="AMBS Agency" className="mx-auto h-11 object-contain" />
+            <div className="mt-0.5 text-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Visibility Hub · SEO & GEO</div>
+          </div>
+        )}
       </SidebarHeader>
       <SidebarContent>
         {NAV.map((g) => (
@@ -48,7 +49,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-3">
         <div className="flex items-center gap-2.5">
-          <div className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground">SB</div>
+          <div className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">SB</div>
           {!collapsed && (
             <>
               <div className="min-w-0 flex-1 leading-tight">
