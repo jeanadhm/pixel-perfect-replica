@@ -10,11 +10,52 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ActionsRouteImport } from './routes/actions'
+import { Route as AuditRouteImport } from './routes/audit'
+import { Route as BacklinksRouteImport } from './routes/backlinks'
+import { Route as ConcurrentsRouteImport } from './routes/concurrents'
+import { Route as GeoRouteImport } from './routes/geo'
+import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as MotsClesRouteImport } from './routes/mots-cles'
+import { Route as PagesRouteImport } from './routes/pages'
+import { Route as ParametresRouteImport } from './routes/parametres'
+import { Route as PromptsRouteImport } from './routes/prompts'
+import { Route as RapportsRouteImport } from './routes/rapports'
+import { Route as SeoRouteImport } from './routes/seo'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActionsRoute = ActionsRouteImport.update({
+  id: '/actions',
+  path: '/actions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditRoute = AuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BacklinksRoute = BacklinksRouteImport.update({
+  id: '/backlinks',
+  path: '/backlinks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConcurrentsRoute = ConcurrentsRouteImport.update({
+  id: '/concurrents',
+  path: '/concurrents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GeoRoute = GeoRouteImport.update({
+  id: '/geo',
+  path: '/geo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeadsRoute = LeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MotsClesRoute = MotsClesRouteImport.update({
@@ -22,31 +63,140 @@ const MotsClesRoute = MotsClesRouteImport.update({
   path: '/mots-cles',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PagesRoute = PagesRouteImport.update({
+  id: '/pages',
+  path: '/pages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParametresRoute = ParametresRouteImport.update({
+  id: '/parametres',
+  path: '/parametres',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PromptsRoute = PromptsRouteImport.update({
+  id: '/prompts',
+  path: '/prompts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RapportsRoute = RapportsRouteImport.update({
+  id: '/rapports',
+  path: '/rapports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SeoRoute = SeoRouteImport.update({
+  id: '/seo',
+  path: '/seo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
+  '/audit': typeof AuditRoute
+  '/backlinks': typeof BacklinksRoute
+  '/concurrents': typeof ConcurrentsRoute
+  '/geo': typeof GeoRoute
+  '/leads': typeof LeadsRoute
   '/mots-cles': typeof MotsClesRoute
+  '/pages': typeof PagesRoute
+  '/parametres': typeof ParametresRoute
+  '/prompts': typeof PromptsRoute
+  '/rapports': typeof RapportsRoute
+  '/seo': typeof SeoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
+  '/audit': typeof AuditRoute
+  '/backlinks': typeof BacklinksRoute
+  '/concurrents': typeof ConcurrentsRoute
+  '/geo': typeof GeoRoute
+  '/leads': typeof LeadsRoute
   '/mots-cles': typeof MotsClesRoute
+  '/pages': typeof PagesRoute
+  '/parametres': typeof ParametresRoute
+  '/prompts': typeof PromptsRoute
+  '/rapports': typeof RapportsRoute
+  '/seo': typeof SeoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
+  '/audit': typeof AuditRoute
+  '/backlinks': typeof BacklinksRoute
+  '/concurrents': typeof ConcurrentsRoute
+  '/geo': typeof GeoRoute
+  '/leads': typeof LeadsRoute
   '/mots-cles': typeof MotsClesRoute
+  '/pages': typeof PagesRoute
+  '/parametres': typeof ParametresRoute
+  '/prompts': typeof PromptsRoute
+  '/rapports': typeof RapportsRoute
+  '/seo': typeof SeoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/mots-cles'
+  fullPaths:
+    | '/'
+    | '/actions'
+    | '/audit'
+    | '/backlinks'
+    | '/concurrents'
+    | '/geo'
+    | '/leads'
+    | '/mots-cles'
+    | '/pages'
+    | '/parametres'
+    | '/prompts'
+    | '/rapports'
+    | '/seo'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/mots-cles'
-  id: '__root__' | '/' | '/mots-cles'
+  to:
+    | '/'
+    | '/actions'
+    | '/audit'
+    | '/backlinks'
+    | '/concurrents'
+    | '/geo'
+    | '/leads'
+    | '/mots-cles'
+    | '/pages'
+    | '/parametres'
+    | '/prompts'
+    | '/rapports'
+    | '/seo'
+  id:
+    | '__root__'
+    | '/'
+    | '/actions'
+    | '/audit'
+    | '/backlinks'
+    | '/concurrents'
+    | '/geo'
+    | '/leads'
+    | '/mots-cles'
+    | '/pages'
+    | '/parametres'
+    | '/prompts'
+    | '/rapports'
+    | '/seo'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActionsRoute: typeof ActionsRoute
+  AuditRoute: typeof AuditRoute
+  BacklinksRoute: typeof BacklinksRoute
+  ConcurrentsRoute: typeof ConcurrentsRoute
+  GeoRoute: typeof GeoRoute
+  LeadsRoute: typeof LeadsRoute
   MotsClesRoute: typeof MotsClesRoute
+  PagesRoute: typeof PagesRoute
+  ParametresRoute: typeof ParametresRoute
+  PromptsRoute: typeof PromptsRoute
+  RapportsRoute: typeof RapportsRoute
+  SeoRoute: typeof SeoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +208,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/actions': {
+      id: '/actions'
+      path: '/actions'
+      fullPath: '/actions'
+      preLoaderRoute: typeof ActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit': {
+      id: '/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/backlinks': {
+      id: '/backlinks'
+      path: '/backlinks'
+      fullPath: '/backlinks'
+      preLoaderRoute: typeof BacklinksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/concurrents': {
+      id: '/concurrents'
+      path: '/concurrents'
+      fullPath: '/concurrents'
+      preLoaderRoute: typeof ConcurrentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/geo': {
+      id: '/geo'
+      path: '/geo'
+      fullPath: '/geo'
+      preLoaderRoute: typeof GeoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leads': {
+      id: '/leads'
+      path: '/leads'
+      fullPath: '/leads'
+      preLoaderRoute: typeof LeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/mots-cles': {
       id: '/mots-cles'
       path: '/mots-cles'
@@ -65,12 +257,58 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MotsClesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pages': {
+      id: '/pages'
+      path: '/pages'
+      fullPath: '/pages'
+      preLoaderRoute: typeof PagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parametres': {
+      id: '/parametres'
+      path: '/parametres'
+      fullPath: '/parametres'
+      preLoaderRoute: typeof ParametresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/prompts': {
+      id: '/prompts'
+      path: '/prompts'
+      fullPath: '/prompts'
+      preLoaderRoute: typeof PromptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rapports': {
+      id: '/rapports'
+      path: '/rapports'
+      fullPath: '/rapports'
+      preLoaderRoute: typeof RapportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/seo': {
+      id: '/seo'
+      path: '/seo'
+      fullPath: '/seo'
+      preLoaderRoute: typeof SeoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActionsRoute: ActionsRoute,
+  AuditRoute: AuditRoute,
+  BacklinksRoute: BacklinksRoute,
+  ConcurrentsRoute: ConcurrentsRoute,
+  GeoRoute: GeoRoute,
+  LeadsRoute: LeadsRoute,
   MotsClesRoute: MotsClesRoute,
+  PagesRoute: PagesRoute,
+  ParametresRoute: ParametresRoute,
+  PromptsRoute: PromptsRoute,
+  RapportsRoute: RapportsRoute,
+  SeoRoute: SeoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

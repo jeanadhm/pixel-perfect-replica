@@ -1,6 +1,31 @@
 export type Intent = "Informationnelle" | "Commerciale" | "Transactionnelle";
-export type KwStatus = "Visible" | "Faible visibilité" | "Invisible";
+export type KwStatus = "Visible" | "Faible visibilité" | "Invisible" | "À mesurer";
 
+export interface KeywordPlan {
+  stage:
+    | "À qualifier"
+    | "À cibler"
+    | "À intégrer"
+    | "Intégré"
+    | "À optimiser"
+    | "À surveiller"
+    | "Archivé";
+  priority: Priority;
+  owner: string;
+  targetPosition: number | null;
+  placements: string[];
+  contentUrl: string;
+  updatedAt: string;
+}
+export interface KeywordMeasurement {
+  id: string;
+  date: string;
+  position: number | null;
+  impressions: number;
+  clicks: number;
+  source: string;
+  notes: string;
+}
 export interface Keyword {
   id: string;
   term: string;
@@ -8,17 +33,24 @@ export interface Keyword {
   intent: Intent;
   position: number | null;
   previous: number | null;
-  volume: number;
-  difficulty: number;
+  volume: number | null;
+  difficulty: number | null;
   url: string;
   history: { week: string; position: number | null }[];
   competitors: { name: string; position: number }[];
   lastCheck: string;
   notes: string;
+  plan?: KeywordPlan | undefined;
+  measurements?: KeywordMeasurement[] | undefined;
 }
 
-export type Platform = "ChatGPT Search" | "Google AI Overviews" | "Microsoft Copilot" | "Perplexity" | "Gemini";
-export type GeoStatus = "Mentionnée et recommandée" | "Mentionnée sans recommandation" | "Non mentionnée" | "Réponse incorrecte";
+export type Platform =
+  "ChatGPT Search" | "Google AI Overviews" | "Microsoft Copilot" | "Perplexity" | "Gemini";
+export type GeoStatus =
+  | "Mentionnée et recommandée"
+  | "Mentionnée sans recommandation"
+  | "Non mentionnée"
+  | "Réponse incorrecte";
 
 export interface GeoPrompt {
   id: string;
@@ -43,6 +75,8 @@ export interface GeoTest {
   sources: string[];
   status: GeoStatus;
   response: string;
+  origin?: "Simulation" | "Saisie manuelle" | undefined;
+  evidenceUrl?: string | undefined;
 }
 
 export type ActionStatus = "À faire" | "En cours" | "En attente" | "Terminé" | "Bloqué";
@@ -62,9 +96,21 @@ export interface Action {
   deliverable: string;
   kpi: string;
   comments: string;
+  recurrence?:
+    "Ponctuelle" | "Hebdomadaire" | "Bimensuelle" | "Mensuelle" | "Trimestrielle" | undefined;
+  parentActionId?: string | undefined;
+  keywordId?: string | undefined;
+  promptId?: string | undefined;
+  pageId?: string | undefined;
+  baseline?: number | null | undefined;
+  goal?: number | null | undefined;
+  result?: number | null | undefined;
+  metricUnit?: string | undefined;
+  proofUrl?: string | undefined;
 }
 
-export type PageType = "Page solution" | "Page secteur" | "Étude de cas" | "Article de blog" | "Page institutionnelle";
+export type PageType =
+  "Page solution" | "Page secteur" | "Étude de cas" | "Article de blog" | "Page institutionnelle";
 
 export interface SitePage {
   id: string;
@@ -74,10 +120,10 @@ export interface SitePage {
   family: string;
   mainKeyword: string;
   keywordCount: number;
-  published: "Publiée" | "Brouillon" | "À créer";
-  indexed: "Indexée" | "Non indexée" | "En attente";
-  score: number;
-  clicks: number;
+  published: "Publiée" | "Brouillon" | "À créer" | "À vérifier";
+  indexed: "Indexée" | "Non indexée" | "En attente" | "À vérifier";
+  score: number | null;
+  clicks: number | null;
   lastOptimized: string;
   owner: string;
   title: string;
@@ -96,7 +142,7 @@ export interface Backlink {
   source: string;
   target: string;
   type: "Dofollow" | "Nofollow" | "Sponsorisé" | "UGC";
-  authority: number;
+  authority: number | null;
   date: string;
   status: "Actif" | "Perdu" | "En attente";
   quality: "Excellente" | "Bonne" | "Moyenne" | "Faible";
@@ -115,11 +161,11 @@ export interface Competitor {
   id: string;
   name: string;
   site: string;
-  commonKeywords: number;
-  seoVisibility: number;
-  shareOfVoice: number;
-  geoPresence: number;
-  aiCitations: number;
+  commonKeywords: number | null;
+  seoVisibility: number | null;
+  shareOfVoice: number | null;
+  geoPresence: number | null;
+  aiCitations: number | null;
   topTerms: string[];
 }
 
