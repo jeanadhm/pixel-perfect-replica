@@ -9,7 +9,7 @@
     "dev:api": "tsx watch server/index.ts",
     "build": "next build --webpack",
     "start": "node scripts/start.mjs",
-    "start:web": "next start --hostname 127.0.0.1 --port 3000",
+    "start:web": "next start --hostname 0.0.0.0 --port 3000",
     "start:api": "tsx server/index.ts",
     "db:local": "node scripts/local-db.mjs",
     "db:migrate": "tsx server/migrate.ts",
