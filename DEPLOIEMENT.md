@@ -2,7 +2,7 @@
 
 ## Service
 
-- Type : **Application Dockerfile**
+- Type : **Compose** (`docker-compose.yml`)
 - Branche : `main`
 - Dockerfile : `Dockerfile`
 - Port interne : `3000`
@@ -14,9 +14,12 @@ L'image lance le site Next.js sur le port `3000` et l'API Express sur `127.0.0.1
 ## Variables Dokploy requises
 
 ```env
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/ambs_analytics
+POSTGRES_DB=analytics_ambs
+POSTGRES_USER=analytics
+POSTGRES_PASSWORD=un-mot-de-passe-fort
 APP_ORIGIN=https://analytics.ambs-agency.com
 TOKEN_ENCRYPTION_KEY=une-cle-aleatoire-de-32-octets-minimum
+SETUP_TOKEN=un-jeton-aleatoire
 ```
 
 `API_PORT=4000`, `API_HOST=127.0.0.1` et `API_INTERNAL_URL=http://127.0.0.1:4000` sont déjà définies dans l'image.
@@ -33,4 +36,7 @@ GOOGLE_REDIRECT_URI=https://analytics.ambs-agency.com/api/google/callback
 
 ## Base PostgreSQL
 
-Créer une base PostgreSQL dédiée dans Dokploy, puis reporter son URL dans `DATABASE_URL`. Au démarrage, l'API applique ses migrations et initialise les données nécessaires. Le healthcheck Docker appelle `/api/health`, qui valide aussi la connexion PostgreSQL.
+Le service `postgres` et le volume persistant `analytics-postgres-data` sont
+créés par le fichier Compose. Au démarrage, l'API applique ses migrations et
+initialise les données nécessaires. Le healthcheck Docker appelle `/api/health`,
+qui valide aussi la connexion PostgreSQL.
