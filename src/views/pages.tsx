@@ -171,8 +171,6 @@ function PageEditor({ page }: { page: SitePage }) {
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!draft.title.trim() || !draft.h1.trim())
-            return void toast.error("Le title et le H1 sont obligatoires");
           if (!(await update("pages", (items) => items.map((p) => (p.id === page.id ? draft : p)))))
             return;
           toast.success("Fiche enregistrée");
@@ -234,7 +232,6 @@ function PageEditor({ page }: { page: SitePage }) {
           {(id) => (
             <Input
               id={id}
-              required
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             />
@@ -253,7 +250,6 @@ function PageEditor({ page }: { page: SitePage }) {
           {(id) => (
             <Input
               id={id}
-              required
               value={draft.h1}
               onChange={(e) => setDraft({ ...draft, h1: e.target.value })}
             />

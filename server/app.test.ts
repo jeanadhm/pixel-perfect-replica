@@ -7,7 +7,7 @@ import { seed } from "./seed";
 import { encrypt } from "./security";
 import { allowedPublicUrl } from "./crawl";
 import { parseLeads } from "./imports";
-import { validateRealData } from "./repository";
+import { collections, validateRealData } from "./repository";
 const origin = "http://localhost:3000",
   app = createApp(),
   admin = request.agent(app);
@@ -100,6 +100,38 @@ describe("Evidence-bound workspace", () => {
     await second.post("/api/auth/login").set("Origin", origin).send(account).expect(200);
     const loaded = (await second.get("/api/workspace")).body;
     expect(loaded.state.actions.find((a: any) => a.id === action.id).title).toBe(action.title);
+  });
+  it("round-trips every editable collection without losing records", async () => {
+    for (const collection of [...collections, "families"]) {
+      const before = (await admin.get("/api/workspace")).body;
+      await admin
+        .put(`/api/workspace/${collection}`)
+        .set("Origin", origin)
+        .send({ revision: before.revision, items: before.state[collection] })
+        .expect(200);
+      const after = (await admin.get("/api/workspace")).body;
+      expect(after.state[collection]).toHaveLength(before.state[collection].length);
+      if (collection !== "families")
+        expect(after.state[collection].map((item: any) => item.id).sort()).toEqual(
+          before.state[collection].map((item: any) => item.id).sort(),
+        );
+    }
+  });
+  it("accepts only one of two concurrent updates to the same revision", async () => {
+    const before = (await admin.get("/api/workspace")).body;
+    const responses = await Promise.all(
+      ["Concurrent A", "Concurrent B"].map((name) =>
+        admin
+          .put("/api/workspace/families")
+          .set("Origin", origin)
+          .send({ revision: before.revision, items: [...before.state.families, name] }),
+      ),
+    );
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    const after = (await admin.get("/api/workspace")).body;
+    expect(
+      after.state.families.filter((name: string) => name.startsWith("Concurrent ")),
+    ).toHaveLength(1);
   });
   it("rejects made-up assignees and prompt copies presented as observations", async () => {
     const { state, revision } = (await admin.get("/api/workspace")).body;
@@ -251,6 +283,19 @@ describe("Real-source imports and integrations", () => {
       .send({ gscProperty: "sc-domain:example.com", ga4Property: null })
       .expect(400);
   });
+  it("rejects a partially invalid CSV without importing its valid rows", async () => {
+    const before = (await admin.get("/api/workspace")).body;
+    const csv =
+      "externalId,company,date,source,channel,url\nvalid-row,Fixture,2026-11-01,Direct,Formulaire,https://example.com/1\ninvalid-row,Fixture,2026-02-31,Direct,Formulaire,https://example.com/2";
+    await admin
+      .post("/api/import/leads")
+      .set("Origin", origin)
+      .send({ siteId: "ambs", system: "CSV transaction test", csv })
+      .expect(400);
+    const after = (await admin.get("/api/workspace")).body;
+    expect(after.state.leads).toEqual(before.state.leads);
+    expect(after.revision).toBe(before.revision);
+  });
   it("synchronizes Search Console using host filters, reported daily totals and idempotent rows", async () => {
     await pool.query(
       "INSERT INTO google_tokens(id,encrypted_token) VALUES(1,$1) ON CONFLICT(id) DO UPDATE SET encrypted_token=EXCLUDED.encrypted_token",
@@ -395,5 +440,27 @@ describe("Real-source imports and integrations", () => {
   });
   it("rejects callbacks without a valid single-use OAuth state", async () => {
     await admin.get("/api/google/callback?state=invalid&code=invalid").expect(400);
+  });
+  it("retains the previous traffic when Google rejects a synchronization", async () => {
+    const before = (await pool.query("SELECT * FROM search_daily ORDER BY site_id,day")).rows;
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("Forbidden", { status: 403 }));
+    await admin
+      .post("/api/sync/gsc/leads")
+      .set("Origin", origin)
+      .send({ startDate: "2026-11-01", endDate: "2026-11-04" })
+      .expect(502);
+    expect((await pool.query("SELECT * FROM search_daily ORDER BY site_id,day")).rows).toEqual(
+      before,
+    );
+    const runs = (await admin.get("/api/integrations")).body.runs;
+    expect(runs[0].status).toBe("error");
+    expect(runs[0].message).toContain("403");
+  });
+  it("invalidates a session when its user signs out", async () => {
+    const client = request.agent(app);
+    await client.post("/api/auth/login").set("Origin", origin).send(account).expect(200);
+    await client.get("/api/workspace").expect(200);
+    await client.post("/api/auth/logout").set("Origin", origin).send({}).expect(200);
+    await client.get("/api/workspace").expect(401);
   });
 });

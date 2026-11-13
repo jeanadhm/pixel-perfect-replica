@@ -150,6 +150,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
                   siteForUrl(item.url ?? item.target ?? "")?.id ??
                   stateRef.current.pages.find((p) => p.id === item.pageId)?.siteId ??
                   stateRef.current.prompts.find((p) => p.id === item.promptId)?.siteId ??
+                  stateRef.current.keywords.find((k) => k.id === item.keywordId)?.siteId ??
                   (siteScope === "all" ? "ambs" : siteScope),
               }
             : item,

@@ -703,7 +703,7 @@ function AddKeywordDialog() {
     };
     if (!(await update("keywords", (ks) => [k, ...ks]))) return;
     toast.success("Mot-clé ajouté", {
-      description: "Ajout local uniquement ; aucun suivi automatique n’est connecté.",
+      description: "Mot-clé enregistré dans l’espace partagé.",
     });
     setOpen(false);
     setF((s) => ({ ...s, term: "" }));

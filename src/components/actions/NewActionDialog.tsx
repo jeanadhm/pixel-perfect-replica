@@ -175,18 +175,16 @@ export function NewActionDialog({
                 <Input
                   id={id}
                   type="date"
-                  required
                   value={draft.start}
                   onChange={(e) => field("start", e.target.value)}
                 />
               )}
             </FormField>
-            <FormField label="Échéance *">
+            <FormField label="Échéance">
               {(id) => (
                 <Input
                   id={id}
                   type="date"
-                  required
                   min={draft.start}
                   value={draft.due}
                   onChange={(e) => field("due", e.target.value)}
