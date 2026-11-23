@@ -13,7 +13,13 @@ import { type DemoState } from "./schema";
 import { emptyState, scopeState } from "./scope";
 import { SITES, siteForUrl, type SiteScope } from "./sites";
 import { api } from "../api/client";
-import type { Member, Connections, PublicObservation, Metrics } from "../api/types";
+import type {
+  Member,
+  Connections,
+  PublicObservation,
+  Metrics,
+  CompetitorObservation,
+} from "../api/types";
 import { toast } from "sonner";
 export type Period = "7j" | "30j" | "90j" | "12m";
 export const PERIOD_DAYS: Record<Period, number> = { "7j": 7, "30j": 30, "90j": 90, "12m": 365 };
@@ -44,6 +50,7 @@ interface Ctx extends State {
   logout: () => Promise<void>;
   connections: Connections;
   observations: PublicObservation[];
+  competitorObservations: CompetitorObservation[];
   metrics: Metrics | null;
 }
 const Ctx = createContext<Ctx | null>(null);
@@ -64,7 +71,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     runs: [],
   });
   const [observations, setObservations] = useState<PublicObservation[]>([]),
-    [metrics, setMetrics] = useState<Metrics | null>(null);
+    [metrics, setMetrics] = useState<Metrics | null>(null),
+    [competitorObservations, setCompetitorObservations] = useState<CompetitorObservation[]>([]);
   const stateRef = useRef(state),
     savedRef = useRef(state),
     revision = useRef(0),
@@ -90,11 +98,14 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
         commit(emptyState());
         return;
       }
-      const [data, team, conn, publicPages] = await Promise.all([
+      const [data, team, conn, publicPages, competitorData] = await Promise.all([
         api<{ state: State; revision: number }>("/workspace"),
         api<{ users: Member[] }>("/users"),
         api<Connections>("/integrations"),
         api<{ pages: PublicObservation[] }>("/public-pages"),
+        api<{ observations: CompetitorObservation[] }>("/competitors/observations").catch(() => ({
+          observations: [],
+        })),
       ]);
       revision.current = data.revision;
       savedRef.current = data.state;
@@ -102,6 +113,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setMembers(team.users);
       setConnections(conn);
       setObservations(publicPages.pages);
+      setCompetitorObservations(competitorData.observations);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Connexion au serveur impossible");
     } finally {
@@ -228,6 +240,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       },
       connections,
       observations,
+      competitorObservations,
       metrics,
     }),
     [
@@ -244,6 +257,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       connections,
       observations,
+      competitorObservations,
       metrics,
     ],
   );

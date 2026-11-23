@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { CircleAlert, RefreshCw, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { uid, useDemo } from "@/lib/demo/store";
 import type { Backlink, Competitor } from "@/lib/demo/types";
@@ -258,7 +259,32 @@ function CompetitorEditor({ item }: { item?: Competitor }) {
   );
 }
 export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }) {
-  const { backlinks, competitors } = useDemo();
+  const { backlinks, competitors, competitorObservations, refresh, user } = useDemo();
+  const [probingId, setProbingId] = useState<string | null>(null);
+  const observationById = useMemo(
+    () =>
+      new Map(competitorObservations.map((observation) => [observation.competitorId, observation])),
+    [competitorObservations],
+  );
+
+  async function probe(id: string) {
+    try {
+      setProbingId(id);
+      const result = await fetch(`/api/competitors/${encodeURIComponent(id)}/probe`, {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      const data = await result.json().catch(() => ({}));
+      if (!result.ok) throw new Error(data.error ?? "Contrôle concurrentiel indisponible");
+      await refresh();
+      if (data.observation?.error) toast.warning(`Contrôle terminé : ${data.observation.error}`);
+      else toast.success("Relevé concurrentiel public enregistré.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Contrôle concurrentiel indisponible");
+    } finally {
+      setProbingId(null);
+    }
+  }
   if (kind === "backlinks")
     return (
       <div className="space-y-6">
@@ -338,9 +364,39 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
     <div className="space-y-6">
       <PageHeader
         title="Concurrents"
-        description="Consignez vos observations concurrentielles. Les chiffres non renseignés restent inconnus."
+        description="Chaque concurrent ajouté peut être contrôlé depuis sa page publique. Les métriques de rang et de part de voix restent non mesurées tant qu’aucune source SERP autorisée n’est reliée."
         actions={<CompetitorEditor />}
       />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi label="Concurrents suivis" value={competitors.length} />
+        <Kpi
+          label="Relevés publics"
+          value={competitorObservations.filter((observation) => !observation.error).length}
+          tone="success"
+          icon={ShieldCheck}
+          sub="Titre, balises et structure"
+        />
+        <Kpi
+          label="À vérifier"
+          value={competitors.filter((competitor) => !observationById.has(competitor.id)).length}
+          tone="primary"
+          sub="Aucun relevé encore enregistré"
+        />
+        <Kpi
+          label="Erreurs de contrôle"
+          value={competitorObservations.filter((observation) => observation.error).length}
+          tone="danger"
+          icon={CircleAlert}
+          sub="Dernier relevé uniquement"
+        />
+      </div>
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground">
+        <b className="text-foreground">Ce qui est vérifié automatiquement :</b> disponibilité HTTPS,
+        redirections, titre, meta description, robots, H1, H2, données structurées et volume de
+        texte. <b className="text-foreground">Ce qui nécessite une source distincte :</b> positions
+        Google, part de voix, volume et visibilité IA. Le hub les laisse donc inconnus plutôt que de
+        les estimer.
+      </div>
       <DataTable
         rows={competitors}
         search={(c) => c.name + " " + c.topTerms.join(" ")}
@@ -354,6 +410,37 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
                 <p className="text-xs text-muted-foreground">{c.site}</p>
               </div>
             ),
+          },
+          {
+            label: "Dernier relevé public",
+            render: (c) => {
+              const observation = observationById.get(c.id);
+              if (!observation)
+                return <span className="text-xs text-muted-foreground">À lancer</span>;
+              if (observation.error)
+                return (
+                  <span className="max-w-52 text-xs text-destructive" title={observation.error}>
+                    Échec : {observation.error}
+                  </span>
+                );
+              return (
+                <div className="max-w-64">
+                  <Badge variant="success">HTTP {observation.status}</Badge>
+                  <p
+                    className="mt-1 truncate text-xs text-muted-foreground"
+                    title={observation.title}
+                  >
+                    {observation.title || "Titre absent"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Intl.DateTimeFormat("fr-FR", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    }).format(new Date(observation.checkedAt))}
+                  </p>
+                </div>
+              );
+            },
           },
           {
             label: "Mots-clés communs",
@@ -374,7 +461,18 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
           {
             label: "Suivi",
             render: (c) => (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={probingId === c.id || user?.role === "viewer"}
+                  onClick={() => void probe(c.id)}
+                >
+                  <RefreshCw
+                    className={probingId === c.id ? "size-3.5 animate-spin" : "size-3.5"}
+                  />
+                  {probingId === c.id ? "Contrôle…" : "Relever"}
+                </Button>
                 <CompetitorEditor item={c} />
                 <NewActionDialog
                   defaults={{

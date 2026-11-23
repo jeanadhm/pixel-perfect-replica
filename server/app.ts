@@ -14,11 +14,14 @@ import {
   finishAuthorization,
   googleConfigured,
   properties,
+  synchronizeGoogleNow,
   syncGoogle,
 } from "./google";
 import { importLeads } from "./imports";
 import { SITES } from "../src/lib/demo/sites";
 import { crawlPage } from "./crawl";
+import { latestCompetitorObservations, probeCompetitor } from "./competitors";
+import { reconcileAutomaticActions } from "./automation";
 declare global {
   namespace Express {
     interface Request {
@@ -206,6 +209,20 @@ export function createApp() {
     const { url } = z.object({ url: z.string().url() }).parse(req.body);
     res.json(await crawlPage(url, req.user!.id));
   });
+  app.get("/api/competitors/observations", async (_req, res) =>
+    res.json({ observations: await latestCompetitorObservations() }),
+  );
+  app.post("/api/competitors/:id/probe", editor, async (req, res) => {
+    const id = String(req.params["id"]);
+    const row = (
+      await pool.query(
+        "SELECT payload->>'site' AS site FROM records WHERE collection='competitors' AND id=$1",
+        [id],
+      )
+    ).rows[0];
+    if (!row?.site) throw new HttpError(404, "Concurrent introuvable.");
+    res.json({ observation: await probeCompetitor(id, row.site) });
+  });
   app.get("/api/integrations", async (_req, res) =>
     res.json({
       googleConfigured: googleConfigured(),
@@ -276,6 +293,14 @@ export function createApp() {
       throw new HttpError(503, "La connexion Google n’est pas configurée sur le serveur.");
     res.json(await discoverAndLinkGoogleProperties());
   });
+  app.post("/api/google/synchronize", editor, async (_req, res) => {
+    if (!googleConfigured())
+      throw new HttpError(503, "La connexion Google n’est pas configurée sur le serveur.");
+    res.json(await synchronizeGoogleNow());
+  });
+  app.post("/api/automation/reconcile", editor, async (_req, res) =>
+    res.json(await reconcileAutomaticActions()),
+  );
   app.post("/api/sync/:provider/:siteId", editor, async (req, res) => {
     const data = z
       .object({

@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { pageHead } from "@/lib/head";
 import { useDemo } from "@/lib/demo/store";
 import { fdate } from "@/lib/demo/utils";
@@ -11,18 +13,50 @@ import { NewActionDialog, ACTION_STATUSES } from "@/components/actions/NewAction
 import { Button } from "@/components/ui/button";
 
 function ActionsPage() {
-  const { actions, workspace } = useDemo();
+  const { actions, workspace, refresh, user } = useDemo();
   const [category, setCategory] = useState("all"),
     [status, setStatus] = useState("all");
   const [owner, setOwner] = useState("all");
+  const [reconciling, setReconciling] = useState(false);
   const overdue = (due: string, state: string) =>
     !!due && state !== "Terminé" && due < new Date().toISOString().slice(0, 10);
+  async function reconcile() {
+    try {
+      setReconciling(true);
+      const response = await fetch("/api/automation/reconcile", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error ?? "Mise à jour automatique indisponible");
+      await refresh();
+      toast.success(
+        `${result.active} tâche(s) active(s) · ${result.created} créée(s) · ${result.resolved} résolue(s).`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Mise à jour automatique indisponible");
+    } finally {
+      setReconciling(false);
+    }
+  }
   return (
     <>
       <PageHeader
         title="Actions & Tâches"
-        description="Un plan d’action partagé pour transformer vos opportunités en résultats."
-        actions={<NewActionDialog />}
+        description="Les tâches manuelles et les alertes issues des sources vérifiées sont réunies au même endroit."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              disabled={reconciling || user?.role === "viewer"}
+              onClick={() => void reconcile()}
+            >
+              <RefreshCw className={reconciling ? "size-4 animate-spin" : "size-4"} />
+              {reconciling ? "Mise à jour…" : "Actualiser les tâches automatiques"}
+            </Button>
+            <NewActionDialog />
+          </>
+        }
       />
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Actions au total" value={actions.length} />
@@ -88,6 +122,9 @@ function ActionsPage() {
                     </button>
                   }
                 />
+                {a.comments.startsWith("[Automatique]") && (
+                  <p className="mt-1 text-xs font-medium text-primary">Détectée automatiquement</p>
+                )}
                 <p className="mt-1 text-xs text-muted-foreground">
                   {a.category} · {a.recurrence ?? "Ponctuelle"} · {a.target}
                 </p>

@@ -3,7 +3,9 @@ import { config } from "./config";
 import { pool } from "./db";
 import { migrate } from "./migrate";
 import { seed } from "./seed";
-import { autoSyncGoogle } from "./google";
+import { synchronizeGoogleNow } from "./google";
+import { probeAllCompetitors } from "./competitors";
+import { reconcileAutomaticActions } from "./automation";
 if (!config.databaseUrl)
   throw new Error("DATABASE_URL manquant. Exécuter npm run db:local ou configurer .env.");
 await migrate();
@@ -22,22 +24,38 @@ if (config.autoSyncEnabled) {
     if (syncing) return;
     syncing = true;
     try {
-      const result = await autoSyncGoogle();
-      if (result.completed || result.failed)
-        console.log(`Synchronisation Google auto : ${result.completed} réussie(s), ${result.failed} échec(s).`);
+      try {
+        const result = await synchronizeGoogleNow();
+        if (result.completed || result.failed)
+          console.log(
+            `Synchronisation Google auto : ${result.completed} réussie(s), ${result.failed} échec(s).`,
+          );
+      } catch {
+        // A temporary Google failure must not suspend public competitor checks.
+        console.error("Synchronisation Google automatique non exécutée.");
+      }
+      try {
+        const competitors = await probeAllCompetitors();
+        if (competitors.length)
+          console.log(`Surveillance concurrentielle : ${competitors.length} site(s) relevé(s).`);
+      } catch {
+        console.error("Surveillance concurrentielle automatique non exécutée.");
+      }
+      const actions = await reconcileAutomaticActions();
+      if (actions.created || actions.restored || actions.resolved)
+        console.log(
+          `Tâches automatiques : ${actions.active} active(s), ${actions.created} créée(s), ${actions.resolved} résolue(s).`,
+        );
     } catch {
-      // Each provider failure is persisted in sync_runs. The process must remain available.
-      console.error("Synchronisation Google automatique non exécutée.");
+      // The scheduler must remain available after an unexpected programming/runtime error.
+      console.error("Automatisation de visibilité interrompue.");
     } finally {
       syncing = false;
     }
   };
   const initial = setTimeout(() => void runAutomation(), 15000);
   initial.unref();
-  automation = setInterval(
-    () => void runAutomation(),
-    config.autoSyncIntervalMinutes * 60 * 1000,
-  );
+  automation = setInterval(() => void runAutomation(), config.autoSyncIntervalMinutes * 60 * 1000);
   automation.unref();
 }
 async function stop() {

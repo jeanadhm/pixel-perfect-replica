@@ -84,6 +84,7 @@ function SourceRow({
 export default function ConnectionsPage() {
   const { connections, refresh, user } = useDemo();
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
   const recentBy = (siteId: string, provider: Provider) =>
     connections.runs.find((run) => run.site_id === siteId && run.provider === provider);
@@ -101,6 +102,14 @@ export default function ConnectionsPage() {
       total +
       Number(Boolean(integration?.gsc_property) && recentBy(site.id, "gsc")?.status === "error") +
       Number(Boolean(integration?.ga4_property) && recentBy(site.id, "ga4")?.status === "error")
+    );
+  }, 0);
+  const pendingSources = GOOGLE_SITES.reduce((total, site) => {
+    const integration = connections.sites.find((item) => item.site_id === site.id);
+    return (
+      total +
+      Number(Boolean(integration?.gsc_property) && recentBy(site.id, "gsc")?.status !== "success") +
+      Number(Boolean(integration?.ga4_property) && recentBy(site.id, "ga4")?.status !== "success")
     );
   }, 0);
   const latestRuns = connections.runs.reduce<SyncRun[]>((runs, run) => {
@@ -154,6 +163,32 @@ export default function ConnectionsPage() {
     }
   }
 
+  async function synchronize() {
+    try {
+      setSyncing(true);
+      setError("");
+      const result = await api<{ completed: number; failed: number; skipped?: string }>(
+        "/google/synchronize",
+        { method: "POST" },
+      );
+      await refresh();
+      if (result.skipped) {
+        toast.message("La synchronisation attend une connexion Google valide.");
+      } else if (result.failed) {
+        toast.warning(`${result.completed} source(s) relevée(s), ${result.failed} à corriger.`);
+      } else {
+        toast.success(`${result.completed} source(s) relevée(s) avec les données disponibles.`);
+      }
+    } catch (reason) {
+      const message =
+        reason instanceof Error ? reason.message : "Synchronisation Google indisponible";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -197,6 +232,14 @@ export default function ConnectionsPage() {
               {busy ? "Détection en cours…" : "Détecter les propriétés"}
             </Button>
             <Button
+              variant="outline"
+              disabled={busy || syncing || !connections.googleConnected || user?.role === "viewer"}
+              onClick={() => void synchronize()}
+            >
+              <RefreshCw className={syncing ? "size-4 animate-spin" : "size-4"} />
+              {syncing ? "Synchronisation…" : "Synchroniser maintenant"}
+            </Button>
+            <Button
               disabled={busy || !connections.googleConfigured || user?.role !== "admin"}
               onClick={() => void reconnect()}
             >
@@ -207,7 +250,7 @@ export default function ConnectionsPage() {
         </div>
       </Panel>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <div className="card-surface p-4">
           <p className="text-xs font-medium text-muted-foreground">Sites suivis par Google</p>
           <p className="mt-1 text-2xl font-bold tabular">{GOOGLE_SITES.length}</p>
@@ -227,6 +270,10 @@ export default function ConnectionsPage() {
           <p className="mt-1 text-2xl font-bold tabular">{failingSources}</p>
         </div>
         <div className="card-surface p-4">
+          <p className="text-xs font-medium text-muted-foreground">Sans relevé réussi</p>
+          <p className="mt-1 text-2xl font-bold tabular">{pendingSources}</p>
+        </div>
+        <div className="card-surface p-4">
           <p className="text-xs font-medium text-muted-foreground">Fréquence</p>
           <p className="mt-1 flex items-center gap-1 text-sm font-semibold">
             <TimerReset className="size-4 text-primary" /> Toutes les 4 h
@@ -236,7 +283,7 @@ export default function ConnectionsPage() {
 
       <Panel
         title="Couverture Google par site"
-        description="GA4 est rafraîchi jusqu’à J-1. Search Console s’arrête à J-3. AMBS Outreach est volontairement exclu de cette synchronisation."
+        description="GA4 est rafraîchi jusqu’à J-1. Search Console s’arrête à J-3. Les données organiques ne sont donc pas un flux temps réel. AMBS Outreach est volontairement exclu de cette synchronisation."
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {GOOGLE_SITES.map((site) => {
@@ -307,7 +354,7 @@ export default function ConnectionsPage() {
                     <h3 className="font-semibold">{site.name}</h3>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {integration?.gsc_property
-                        ? "Propriété détectée, prête à synchroniser."
+                        ? "Propriété détectée. Utilisez « Synchroniser maintenant » pour le premier relevé."
                         : "Propriété URL à valider avec le fichier ou la balise fournie par Google."}
                     </p>
                   </div>

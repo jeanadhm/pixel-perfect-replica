@@ -30,6 +30,21 @@ export interface Connections {
   sites: Integration[];
   runs: SyncRun[];
 }
+export interface CompetitorObservation {
+  competitorId: string;
+  checkedAt: string;
+  url: string;
+  finalUrl: string | null;
+  status: number | null;
+  title: string;
+  metaDescription: string;
+  robots: string;
+  h1: string;
+  h2Count: number;
+  schemaBlocks: number;
+  wordCount: number;
+  error: string | null;
+}
 export type PublicObservation = (typeof PUBLIC_PAGES)[number] & { checkedAt: string };
 export interface Metrics {
   siteIds?: string[];

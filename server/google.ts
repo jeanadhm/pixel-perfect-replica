@@ -491,3 +491,17 @@ export async function autoSyncGoogle() {
   }
   return { completed, failed };
 }
+
+let activeSynchronization: Promise<Awaited<ReturnType<typeof autoSyncGoogle>>> | null = null;
+
+/**
+ * Shares a single Google import between the scheduler and an operator-triggered refresh.
+ * It prevents duplicate delete/reinsert cycles while preserving a precise result for the UI.
+ */
+export function synchronizeGoogleNow() {
+  if (activeSynchronization) return activeSynchronization;
+  activeSynchronization = autoSyncGoogle().finally(() => {
+    activeSynchronization = null;
+  });
+  return activeSynchronization;
+}
