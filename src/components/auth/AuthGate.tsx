@@ -1,5 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { useDemo } from "@/lib/demo/store";
 import { api } from "@/lib/api/client";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,9 @@ import { Button } from "@/components/ui/button";
 export function AuthGate({ children }: { children: ReactNode }) {
   const { user, loading, setupRequired, production, refresh, error } = useDemo();
   const [busy, setBusy] = useState(false),
-    [message, setMessage] = useState("");
+    [message, setMessage] = useState(""),
+    [showPassword, setShowPassword] = useState(false),
+    [showSetupToken, setShowSetupToken] = useState(false);
   if (loading)
     return (
       <main className="grid min-h-screen place-content-center">
@@ -59,21 +62,50 @@ export function AuthGate({ children }: { children: ReactNode }) {
           </label>
           <label className="block text-sm">
             Mot de passe
-            <Input
-              name="password"
-              type="password"
-              minLength={12}
-              maxLength={200}
-              required
-              autoComplete={setupRequired ? "new-password" : "current-password"}
-              className="mt-1"
-            />
+            <span className="relative mt-1 block">
+              <Input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                minLength={12}
+                maxLength={200}
+                required
+                autoComplete={setupRequired ? "new-password" : "current-password"}
+                className="pr-12"
+              />
+              <button
+                type="button"
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                aria-pressed={showPassword}
+                title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                onClick={() => setShowPassword((value) => !value)}
+                className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                {showPassword ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+              </button>
+            </span>
             <span className="text-xs text-muted-foreground">12 caractères minimum</span>
           </label>
           {setupRequired && production && (
             <label className="block text-sm">
               Jeton de configuration
-              <Input name="setupToken" type="password" required className="mt-1" />
+              <span className="relative mt-1 block">
+                <Input
+                  name="setupToken"
+                  type={showSetupToken ? "text" : "password"}
+                  required
+                  className="pr-12"
+                />
+                <button
+                  type="button"
+                  aria-label={showSetupToken ? "Masquer le jeton de configuration" : "Afficher le jeton de configuration"}
+                  aria-pressed={showSetupToken}
+                  title={showSetupToken ? "Masquer le jeton de configuration" : "Afficher le jeton de configuration"}
+                  onClick={() => setShowSetupToken((value) => !value)}
+                  className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  {showSetupToken ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+                </button>
+              </span>
             </label>
           )}
           {(message || error) && (

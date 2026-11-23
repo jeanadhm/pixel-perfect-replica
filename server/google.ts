@@ -9,16 +9,25 @@ const scopes = [
   "https://www.googleapis.com/auth/analytics.readonly",
 ];
 type Tokens = { access_token: string; refresh_token?: string; expires_at: number };
+type GscProperty = { siteUrl: string; permissionLevel?: string };
+type Ga4Property = { property: string; displayName: string; defaultUri: string | null };
+export type GoogleProperties = { gsc: GscProperty[]; ga4: Ga4Property[]; errors: string[] };
 export function googleConfigured() {
   return !!(config.googleClientId && config.googleClientSecret && config.encryptionKey);
 }
 async function jsonFetch(url: string, options: RequestInit = {}) {
   const response = await fetch(url, { ...options, signal: AbortSignal.timeout(30000) });
-  if (!response.ok)
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const payload = await response.json();
+      detail = typeof payload?.error?.message === "string" ? payload.error.message : "";
+    } catch {}
     throw new HttpError(
       502,
-      `Google a refusé la requête (HTTP ${response.status}). Vérifiez les autorisations, la propriété et les API activées.`,
+      `Google a refusé la requête (HTTP ${response.status}). ${detail || "Vérifiez les autorisations, la propriété et les API activées."}`,
     );
+  }
   return response.json() as Promise<any>;
 }
 export async function authorizationUrl(userId: string) {
@@ -114,35 +123,95 @@ async function google(url: string, body?: unknown) {
     ...(body ? { method: "POST", body: JSON.stringify(body) } : {}),
   });
 }
-export async function properties() {
+async function listGa4Properties(): Promise<Ga4Property[]> {
+  const accounts: any[] = [];
+  let page = "";
+  do {
+    const result = await google(
+      "https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=200" +
+        (page ? `&pageToken=${encodeURIComponent(page)}` : ""),
+    );
+    accounts.push(...(result.accountSummaries ?? []));
+    page = result.nextPageToken ?? "";
+  } while (page);
+  const summaries = accounts.flatMap((account) => account.propertySummaries ?? []);
+  const resolved = await Promise.all(
+    summaries.map(async (summary: any): Promise<Ga4Property> => {
+      const resource = String(summary.property ?? "");
+      const property = resource.replace(/^properties\//, "");
+      let defaultUri: string | null = null;
+      try {
+        const streams = await google(
+          `https://analyticsadmin.googleapis.com/v1beta/${resource}/dataStreams?pageSize=200`,
+        );
+        defaultUri =
+          streams.dataStreams?.find((stream: any) => stream.webStreamData?.defaultUri)?.webStreamData
+            ?.defaultUri ?? null;
+      } catch {
+        // A property remains usable even when its stream metadata is unavailable.
+      }
+      return { property, displayName: String(summary.displayName ?? property), defaultUri };
+    }),
+  );
+  return resolved.filter((property) => /^\d+$/.test(property.property));
+}
+export async function properties(): Promise<GoogleProperties> {
   const results = await Promise.allSettled([
     google("https://www.googleapis.com/webmasters/v3/sites"),
-    (async () => {
-      const accounts: any[] = [];
-      let page = "";
-      do {
-        const result = await google(
-          "https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=200" +
-            (page ? `&pageToken=${encodeURIComponent(page)}` : ""),
-        );
-        accounts.push(...(result.accountSummaries ?? []));
-        page = result.nextPageToken ?? "";
-      } while (page);
-      return accounts;
-    })(),
+    listGa4Properties(),
   ]);
   return {
     gsc: results[0].status === "fulfilled" ? (results[0].value.siteEntry ?? []) : [],
-    ga4:
-      results[1].status === "fulfilled"
-        ? results[1].value.flatMap((a: any) => a.propertySummaries ?? [])
-        : [],
+    ga4: results[1].status === "fulfilled" ? results[1].value : [],
     errors: results.flatMap((r, i) =>
       r.status === "rejected"
         ? [`${i === 0 ? "Search Console" : "GA4"} : ${r.reason.message}`]
         : [],
     ),
   };
+}
+function hostFromUrl(value: string | null | undefined) {
+  try {
+    return new URL(value ?? "").hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+function gscForHost(properties: GscProperty[], host: string) {
+  const exact = properties.find((property) => hostFromUrl(property.siteUrl) === host);
+  if (exact) return exact.siteUrl;
+  return properties
+    .filter((property) => property.siteUrl.startsWith("sc-domain:"))
+    .map((property) => ({ property: property.siteUrl, domain: property.siteUrl.slice(10).toLowerCase() }))
+    .filter(({ domain }) => host === domain || host.endsWith(`.${domain}`))
+    .sort((a, b) => b.domain.length - a.domain.length)[0]?.property;
+}
+function ga4ForHost(properties: Ga4Property[], host: string) {
+  return properties.find((property) => hostFromUrl(property.defaultUri) === host)?.property;
+}
+/**
+ * Links only unconfigured sites. Existing associations remain authoritative and are never
+ * overwritten by heuristics. Domain Search Console properties can safely serve subdomains;
+ * every import is still filtered by hostname in syncGoogle.
+ */
+export async function discoverAndLinkGoogleProperties() {
+  const available = await properties();
+  const rows = (await pool.query("SELECT site_id,gsc_property,ga4_property FROM integrations")).rows;
+  const linked: string[] = [];
+  for (const site of SITES) {
+    const current = rows.find((row) => row.site_id === site.id);
+    if (!current) continue;
+    const gsc = current.gsc_property ?? gscForHost(available.gsc, site.host) ?? null;
+    const ga4 = current.ga4_property ?? ga4ForHost(available.ga4, site.host) ?? null;
+    if (gsc !== current.gsc_property || ga4 !== current.ga4_property) {
+      await pool.query(
+        "UPDATE integrations SET gsc_property=$2,ga4_property=$3,updated_at=now() WHERE site_id=$1",
+        [site.id, gsc, ga4],
+      );
+      linked.push(site.id);
+    }
+  }
+  return { linked, errors: available.errors };
 }
 export const hostRegex = (host: string) =>
   `^https?://(www\\.)?${host.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(/|$)`;
@@ -363,4 +432,39 @@ export async function syncGoogle(
     );
     throw error;
   }
+}
+
+function isoDay(daysAgo: number) {
+  const value = new Date();
+  value.setUTCDate(value.getUTCDate() - daysAgo);
+  return value.toISOString().slice(0, 10);
+}
+/**
+ * Refreshes the rolling window without fabricating data. GA4 is requested through yesterday;
+ * Search Console is requested through D-3 because Google does not expose final organic-search
+ * data in real time. Errors are isolated per source so one property never blocks the others.
+ */
+export async function autoSyncGoogle() {
+  if (!googleConfigured()) return { skipped: "google-not-configured", completed: 0, failed: 0 };
+  const token = await pool.query("SELECT id FROM google_tokens WHERE id=1");
+  if (!token.rowCount) return { skipped: "google-not-connected", completed: 0, failed: 0 };
+  await discoverAndLinkGoogleProperties();
+  const integrations = (await pool.query("SELECT site_id,gsc_property,ga4_property FROM integrations")).rows;
+  let completed = 0,
+    failed = 0;
+  for (const integration of integrations) {
+    const jobs: Array<"gsc" | "ga4"> = [];
+    if (integration.gsc_property) jobs.push("gsc");
+    if (integration.ga4_property) jobs.push("ga4");
+    for (const provider of jobs) {
+      const endOffset = provider === "gsc" ? 3 : 1;
+      try {
+        await syncGoogle(integration.site_id, provider, isoDay(endOffset + 29), isoDay(endOffset));
+        completed++;
+      } catch {
+        failed++;
+      }
+    }
+  }
+  return { completed, failed };
 }

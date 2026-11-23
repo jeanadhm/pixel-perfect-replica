@@ -10,6 +10,7 @@ import { passwordHash, verifyPassword, hashToken, HttpError } from "./security";
 import { getWorkspace, saveCollection } from "./repository";
 import {
   authorizationUrl,
+  discoverAndLinkGoogleProperties,
   finishAuthorization,
   googleConfigured,
   properties,
@@ -264,7 +265,10 @@ export function createApp() {
   app.get("/api/google/callback", admin, async (req, res) => {
     const data = z.object({ state: z.string(), code: z.string() }).parse(req.query);
     await finishAuthorization(data.state, data.code, req.user!.id);
-    res.redirect(config.appOrigin + "/connexions?connected=google");
+    // A newly authorised account already exposes its sites and properties. Link only the
+    // missing associations now; this keeps existing production mappings untouched.
+    await discoverAndLinkGoogleProperties().catch(() => undefined);
+    res.redirect(config.appOrigin + "/connexions?connected=google&autopilot=ready");
   });
   app.get("/api/google/properties", admin, async (_req, res) => res.json(await properties()));
   app.post("/api/sync/:provider/:siteId", editor, async (req, res) => {
