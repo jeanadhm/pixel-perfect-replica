@@ -169,6 +169,20 @@ export const SITES = [
       "Clarifier la valeur publique de l’outil, ses cas d’usage et ses limites, puis enrichir les pages indexables avec des réponses pratiques.",
   },
 ] as const;
+
+// AMBS Outreach remains in the public SEO/GEO inventory, but is deliberately excluded
+// from Google data imports: it is an internal outreach surface, not a reporting property.
+export const GOOGLE_SITES = SITES.filter((site) => site.id !== "outreach");
+
+/**
+ * The account is validated with URL-prefix properties, one for each public
+ * host. This does not require DNS access and keeps the data boundary explicit.
+ */
+export const googleSearchPropertyForSite = (siteId: string) => {
+  const site = GOOGLE_SITES.find((candidate) => candidate.id === siteId);
+  return site ? `https://${site.host}/` : null;
+};
+
 export type SiteId = (typeof SITES)[number]["id"];
 export type SiteScope = SiteId | "all";
 export const siteForUrl = (url: string) => {

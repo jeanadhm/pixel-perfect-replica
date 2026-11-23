@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   CheckCircle2,
   CircleAlert,
+  ExternalLink,
   Link2,
   PlugZap,
   RefreshCw,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useDemo } from "@/lib/demo/store";
-import { SITES } from "@/lib/demo/sites";
+import { GOOGLE_SITES, SITES, googleSearchPropertyForSite } from "@/lib/demo/sites";
 import { api } from "@/lib/api/client";
 import type { SyncRun } from "@/lib/api/types";
 import { PageHeader, Panel } from "@/components/shared/ui";
@@ -86,7 +87,7 @@ export default function ConnectionsPage() {
   const [error, setError] = useState("");
   const recentBy = (siteId: string, provider: Provider) =>
     connections.runs.find((run) => run.site_id === siteId && run.provider === provider);
-  const connectedSources = SITES.reduce((total, site) => {
+  const connectedSources = GOOGLE_SITES.reduce((total, site) => {
     const integration = connections.sites.find((item) => item.site_id === site.id);
     return (
       total +
@@ -94,13 +95,20 @@ export default function ConnectionsPage() {
       Number(Boolean(integration?.ga4_property))
     );
   }, 0);
-  const failingSources = SITES.reduce(
-    (total, site) =>
+  const failingSources = GOOGLE_SITES.reduce((total, site) => {
+    const integration = connections.sites.find((item) => item.site_id === site.id);
+    return (
       total +
-      Number(recentBy(site.id, "gsc")?.status === "error") +
-      Number(recentBy(site.id, "ga4")?.status === "error"),
-    0,
-  );
+      Number(Boolean(integration?.gsc_property) && recentBy(site.id, "gsc")?.status === "error") +
+      Number(Boolean(integration?.ga4_property) && recentBy(site.id, "ga4")?.status === "error")
+    );
+  }, 0);
+  const latestRuns = connections.runs.reduce<SyncRun[]>((runs, run) => {
+    const alreadyIncluded = runs.some(
+      (candidate) => candidate.site_id === run.site_id && candidate.provider === run.provider,
+    );
+    return alreadyIncluded ? runs : [...runs, run];
+  }, []);
 
   async function reconnect() {
     try {
@@ -120,15 +128,20 @@ export default function ConnectionsPage() {
     try {
       setBusy(true);
       setError("");
-      const result = await api<{ linked: string[]; errors: string[] }>("/google/discover", {
-        method: "POST",
-      });
+      const result = await api<{ linked: string[]; cleared: string[]; errors: string[] }>(
+        "/google/discover",
+        {
+          method: "POST",
+        },
+      );
       await refresh();
       if (result.errors.length) {
         setError(result.errors.join(" "));
         toast.error("Google a refusé une partie de la détection.");
-      } else if (result.linked.length) {
-        toast.success(`${result.linked.length} liaison(s) Google détectée(s).`);
+      } else if (result.linked.length || result.cleared.length) {
+        toast.success(
+          `${result.linked.length} liaison(s) détectée(s), ${result.cleared.length} liaison(s) obsolète(s) retirée(s).`,
+        );
       } else {
         toast.message("Aucune nouvelle propriété Google accessible n’a été trouvée.");
       }
@@ -170,8 +183,8 @@ export default function ConnectionsPage() {
             <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
               Une propriété n’apparaît que si le compte Google connecté y dispose réellement des
-              droits de lecture. Une propriété de domaine couvre ses sous-domaines, mais ne couvre
-              pas un autre domaine comme Le Trèfle ou Pautric.
+              droits de lecture. Chaque site est relié à son URL exacte : les données ne se
+              mélangent donc pas entre les sous-domaines.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -196,14 +209,17 @@ export default function ConnectionsPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="card-surface p-4">
-          <p className="text-xs font-medium text-muted-foreground">Sites suivis</p>
-          <p className="mt-1 text-2xl font-bold tabular">{SITES.length}</p>
+          <p className="text-xs font-medium text-muted-foreground">Sites suivis par Google</p>
+          <p className="mt-1 text-2xl font-bold tabular">{GOOGLE_SITES.length}</p>
         </div>
         <div className="card-surface p-4">
           <p className="text-xs font-medium text-muted-foreground">Sources reliées</p>
           <p className="mt-1 text-2xl font-bold tabular">
             {connectedSources}
-            <span className="text-sm font-medium text-muted-foreground"> / {SITES.length * 2}</span>
+            <span className="text-sm font-medium text-muted-foreground">
+              {" "}
+              / {GOOGLE_SITES.length * 2}
+            </span>
           </p>
         </div>
         <div className="card-surface p-4">
@@ -219,11 +235,11 @@ export default function ConnectionsPage() {
       </div>
 
       <Panel
-        title="Couverture par site"
-        description="GA4 est rafraîchi jusqu’à J-1. Search Console s’arrête à J-3, car Google ne publie pas de données organiques en temps réel."
+        title="Couverture Google par site"
+        description="GA4 est rafraîchi jusqu’à J-1. Search Console s’arrête à J-3. AMBS Outreach est volontairement exclu de cette synchronisation."
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {SITES.map((site) => {
+          {GOOGLE_SITES.map((site) => {
             const integration = connections.sites.find((item) => item.site_id === site.id);
             const gsc = sourceState(integration?.gsc_property, recentBy(site.id, "gsc"));
             const ga4 = sourceState(integration?.ga4_property, recentBy(site.id, "ga4"));
@@ -255,6 +271,14 @@ export default function ConnectionsPage() {
                     run={recentBy(site.id, "ga4")}
                   />
                 </div>
+                {!integration?.gsc_property && (
+                  <p className="mt-3 rounded-md bg-muted/60 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                    Propriété URL attendue :{" "}
+                    <code className="font-medium text-foreground">
+                      {googleSearchPropertyForSite(site.id)}
+                    </code>
+                  </p>
+                )}
               </article>
             );
           })}
@@ -269,6 +293,65 @@ export default function ConnectionsPage() {
       </Panel>
 
       <Panel
+        title="Accès Search Console à établir"
+        description="Chaque propriété est vérifiée sur son URL exacte. Cette méthode évite tout accès DNS et rend l’association de données explicite."
+      >
+        <div className="grid gap-3 lg:grid-cols-2">
+          {GOOGLE_SITES.map((site) => {
+            const property = googleSearchPropertyForSite(site.id)!;
+            const integration = connections.sites.find((item) => item.site_id === site.id);
+            return (
+              <article key={site.id} className="rounded-xl border bg-background p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold">{site.name}</h3>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      {integration?.gsc_property
+                        ? "Propriété détectée, prête à synchroniser."
+                        : "Propriété URL à valider avec le fichier ou la balise fournie par Google."}
+                    </p>
+                  </div>
+                  <a
+                    className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
+                    href={`https://search.google.com/search-console?resource_id=${encodeURIComponent(property)}`}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Ouvrir <ExternalLink className="size-3.5" />
+                  </a>
+                </div>
+                <code className="mt-4 block break-all rounded-md bg-muted px-3 py-2 text-xs text-foreground">
+                  {property}
+                </code>
+              </article>
+            );
+          })}
+        </div>
+        <div className="mt-4 grid gap-3 rounded-lg border border-muted bg-muted/30 p-4 text-sm leading-6 text-muted-foreground md:grid-cols-2">
+          <p>
+            <b className="text-foreground">Méthode utilisée — fichier HTML.</b> Le fichier fourni
+            par Search Console est servi à la racine du site, puis Google confirme l’URL concernée.
+          </p>
+          <p>
+            <b className="text-foreground">Alternative — balise HTML.</b> Si le site ne sert pas de
+            fichier statique, la balise fournie par Google est ajoutée dans son
+            <code> &lt;head&gt;</code>. Chaque URL reste indépendante.
+          </p>
+        </div>
+      </Panel>
+
+      <Panel
+        title="Mesure GA4 par site"
+        description="Une source GA4 n’est utilisable que si une propriété et un flux Web correspondent à l’hôte exact. Le tag Google doit être installé sur le site concerné ; il ne remplace pas la vérification Search Console."
+      >
+        <p className="text-sm leading-6 text-muted-foreground">
+          Après ajout ou correction d’un flux, reconnectez le compte puis lancez « Détecter les
+          propriétés ». Les associations sont contrôlées par domaine et les anciennes liaisons
+          devenues inaccessibles sont retirées automatiquement.
+        </p>
+      </Panel>
+
+      <Panel
         title="Historique des synchronisations"
         description="Chaque exécution indique la période et la source utilisées."
       >
@@ -278,7 +361,7 @@ export default function ConnectionsPage() {
               La première synchronisation automatique démarrera peu après le déploiement.
             </p>
           )}
-          {connections.runs.map((run) => (
+          {latestRuns.map((run) => (
             <div key={run.id} className="border-b pb-3 text-sm last:border-0">
               <div className="flex flex-wrap items-center gap-2">
                 <b>

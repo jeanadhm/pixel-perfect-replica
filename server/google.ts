@@ -2,7 +2,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { pool, transaction } from "./db";
 import { config } from "./config";
 import { encrypt, decrypt, hashToken, HttpError } from "./security";
-import { SITES } from "../src/lib/demo/sites";
+import { GOOGLE_SITES, SITES } from "../src/lib/demo/sites";
 import { recordId } from "./seed";
 const scopes = [
   "https://www.googleapis.com/auth/webmasters.readonly",
@@ -145,8 +145,8 @@ async function listGa4Properties(): Promise<Ga4Property[]> {
           `https://analyticsadmin.googleapis.com/v1beta/${resource}/dataStreams?pageSize=200`,
         );
         defaultUri =
-          streams.dataStreams?.find((stream: any) => stream.webStreamData?.defaultUri)?.webStreamData
-            ?.defaultUri ?? null;
+          streams.dataStreams?.find((stream: any) => stream.webStreamData?.defaultUri)
+            ?.webStreamData?.defaultUri ?? null;
       } catch {
         // A property remains usable even when its stream metadata is unavailable.
       }
@@ -178,11 +178,19 @@ function hostFromUrl(value: string | null | undefined) {
   }
 }
 function gscForHost(properties: GscProperty[], host: string) {
-  const exact = properties.find((property) => hostFromUrl(property.siteUrl) === host);
+  // Search Console includes URL-prefix properties that have been created but are not
+  // yet verified. They must never be linked: imports against them fail with a 403.
+  const verified = properties.filter(
+    (property) => property.permissionLevel !== "siteUnverifiedUser",
+  );
+  const exact = verified.find((property) => hostFromUrl(property.siteUrl) === host);
   if (exact) return exact.siteUrl;
-  return properties
+  return verified
     .filter((property) => property.siteUrl.startsWith("sc-domain:"))
-    .map((property) => ({ property: property.siteUrl, domain: property.siteUrl.slice(10).toLowerCase() }))
+    .map((property) => ({
+      property: property.siteUrl,
+      domain: property.siteUrl.slice(10).toLowerCase(),
+    }))
     .filter(({ domain }) => host === domain || host.endsWith(`.${domain}`))
     .sort((a, b) => b.domain.length - a.domain.length)[0]?.property;
 }
@@ -190,28 +198,38 @@ function ga4ForHost(properties: Ga4Property[], host: string) {
   return properties.find((property) => hostFromUrl(property.defaultUri) === host)?.property;
 }
 /**
- * Links only unconfigured sites. Existing associations remain authoritative and are never
- * overwritten by heuristics. Domain Search Console properties can safely serve subdomains;
- * every import is still filtered by hostname in syncGoogle.
+ * Reconciles Google mappings against the properties exposed by the currently authorised
+ * account. A removed permission must not remain stored and fail forever on every scheduler run.
+ * Domain Search Console properties can safely serve subdomains; every import is still filtered
+ * by hostname in syncGoogle. If one of Google's listings fails, that provider is left untouched.
  */
 export async function discoverAndLinkGoogleProperties() {
   const available = await properties();
-  const rows = (await pool.query("SELECT site_id,gsc_property,ga4_property FROM integrations")).rows;
-  const linked: string[] = [];
-  for (const site of SITES) {
+  const rows = (await pool.query("SELECT site_id,gsc_property,ga4_property FROM integrations"))
+    .rows;
+  const linked: string[] = [],
+    cleared: string[] = [];
+  const gscAvailable = !available.errors.some((error) => error.startsWith("Search Console :"));
+  const ga4Available = !available.errors.some((error) => error.startsWith("GA4 :"));
+  for (const site of GOOGLE_SITES) {
     const current = rows.find((row) => row.site_id === site.id);
     if (!current) continue;
-    const gsc = current.gsc_property ?? gscForHost(available.gsc, site.host) ?? null;
-    const ga4 = current.ga4_property ?? ga4ForHost(available.ga4, site.host) ?? null;
+    const gsc = gscAvailable
+      ? (gscForHost(available.gsc, site.host) ?? null)
+      : current.gsc_property;
+    const ga4 = ga4Available
+      ? (ga4ForHost(available.ga4, site.host) ?? null)
+      : current.ga4_property;
     if (gsc !== current.gsc_property || ga4 !== current.ga4_property) {
       await pool.query(
         "UPDATE integrations SET gsc_property=$2,ga4_property=$3,updated_at=now() WHERE site_id=$1",
         [site.id, gsc, ga4],
       );
-      linked.push(site.id);
+      if (gsc || ga4) linked.push(site.id);
+      if ((current.gsc_property && !gsc) || (current.ga4_property && !ga4)) cleared.push(site.id);
     }
   }
-  return { linked, errors: available.errors };
+  return { linked, cleared, errors: available.errors };
 }
 export const hostRegex = (host: string) =>
   `^https?://(www\\.)?${host.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(/|$)`;
@@ -223,6 +241,8 @@ export async function syncGoogle(
 ) {
   const site = SITES.find((s) => s.id === siteId);
   if (!site) throw new HttpError(400, "Site inconnu");
+  if (!GOOGLE_SITES.some((candidate) => candidate.id === siteId))
+    throw new HttpError(400, "Ce site est exclu du suivi Google.");
   const connection = (await pool.query("SELECT * FROM integrations WHERE site_id=$1", [siteId]))
     .rows[0];
   const property = provider === "gsc" ? connection.gsc_property : connection.ga4_property;
@@ -449,10 +469,13 @@ export async function autoSyncGoogle() {
   const token = await pool.query("SELECT id FROM google_tokens WHERE id=1");
   if (!token.rowCount) return { skipped: "google-not-connected", completed: 0, failed: 0 };
   await discoverAndLinkGoogleProperties();
-  const integrations = (await pool.query("SELECT site_id,gsc_property,ga4_property FROM integrations")).rows;
+  const integrations = (
+    await pool.query("SELECT site_id,gsc_property,ga4_property FROM integrations")
+  ).rows;
   let completed = 0,
     failed = 0;
   for (const integration of integrations) {
+    if (!GOOGLE_SITES.some((site) => site.id === integration.site_id)) continue;
     const jobs: Array<"gsc" | "ga4"> = [];
     if (integration.gsc_property) jobs.push("gsc");
     if (integration.ga4_property) jobs.push("ga4");
