@@ -271,6 +271,11 @@ export function createApp() {
     res.redirect(config.appOrigin + "/connexions?connected=google&autopilot=ready");
   });
   app.get("/api/google/properties", admin, async (_req, res) => res.json(await properties()));
+  app.post("/api/google/discover", admin, async (_req, res) => {
+    if (!googleConfigured())
+      throw new HttpError(503, "La connexion Google n’est pas configurée sur le serveur.");
+    res.json(await discoverAndLinkGoogleProperties());
+  });
   app.post("/api/sync/:provider/:siteId", editor, async (req, res) => {
     const data = z
       .object({
