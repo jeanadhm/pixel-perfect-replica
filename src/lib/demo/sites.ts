@@ -21,6 +21,23 @@ export const SITES = [
       "Relier les cas clients aux solutions et aux pages métiers, puis renforcer les réponses aux questions d’achat.",
   },
   {
+    id: "lp",
+    name: "AMBS · Lead Management Immobilier",
+    url: "https://lp.ambs-agency.com",
+    host: "lp.ambs-agency.com",
+    role: "Landing page métier",
+    focus: "Lead management immobilier et traitement des réponses aux annonces",
+    family: "Lead Management immobilier",
+    terms: [
+      "lead management immobilier",
+      "qualification leads immobiliers",
+      "réponse annonces immobilières",
+      "automatisation leads immobilier",
+    ],
+    opportunity:
+      "Documenter le parcours de traitement des réponses et relier la landing page aux preuves, cas clients et demandes de démonstration.",
+  },
+  {
     id: "leads",
     name: "AMBS Leads Management",
     url: "https://leads.ambs-agency.com",
@@ -82,6 +99,74 @@ export const SITES = [
     ],
     opportunity:
       "Distinguer les pages publiques à référencer des écrans de connexion et de gestion à garder hors indexation.",
+  },
+  {
+    id: "pautric",
+    name: "Groupe Pautric · Espace Leads",
+    url: "https://pautric.ambs-ia.com",
+    host: "pautric.ambs-ia.com",
+    role: "Espace client automobile",
+    focus: "Suivi commercial et traitement des leads du Groupe Pautric",
+    family: "Automobile",
+    terms: [
+      "gestion leads automobile",
+      "qualification prospects concession",
+      "suivi commercial automobile",
+      "relance prospects automobile",
+    ],
+    opportunity:
+      "Séparer les pages publiques à documenter des écrans client privés, puis relier les parcours de conversion automobile aux sources mesurées.",
+  },
+  {
+    id: "trefle",
+    name: "Le Trèfle",
+    url: "https://trefle.offres-privileges.com",
+    host: "trefle.offres-privileges.com",
+    role: "Site établissement",
+    focus: "Bureaux et coworking à Boulogne-Billancourt",
+    family: "Bureaux & coworking",
+    terms: [
+      "coworking Boulogne-Billancourt",
+      "bureaux Boulogne-Billancourt",
+      "location bureau Boulogne",
+      "espace coworking Boulogne",
+    ],
+    opportunity:
+      "Consolider les pages d’offre, l’accès, les contacts et les preuves locales pour répondre aux recherches de bureaux et coworking.",
+  },
+  {
+    id: "outreach",
+    name: "AMBS Outreach",
+    url: "https://war.ambs-agency.com",
+    host: "war.ambs-agency.com",
+    role: "Outil d’outreach",
+    focus: "Prospection et campagnes sortantes AMBS",
+    family: "Outreach",
+    terms: [
+      "automatisation prospection",
+      "campagne outreach B2B",
+      "prospection conversationnelle",
+      "relance commerciale automatisée",
+    ],
+    opportunity:
+      "Déterminer les pages réellement destinées à l’indexation et garder les parcours de travail internes exclus du suivi public.",
+  },
+  {
+    id: "walink",
+    name: "AMBS WaLink",
+    url: "https://walink.ambs-agency.com",
+    host: "walink.ambs-agency.com",
+    role: "Outil WhatsApp",
+    focus: "Génération de liens WhatsApp et de QR codes",
+    family: "WhatsApp",
+    terms: [
+      "générateur lien WhatsApp",
+      "QR code WhatsApp",
+      "lien WhatsApp entreprise",
+      "créer lien WhatsApp",
+    ],
+    opportunity:
+      "Clarifier la valeur publique de l’outil, ses cas d’usage et ses limites, puis enrichir les pages indexables avec des réponses pratiques.",
   },
 ] as const;
 export type SiteId = (typeof SITES)[number]["id"];

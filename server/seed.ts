@@ -121,7 +121,7 @@ export function initialState(): DemoState {
       description: `Proposition du cahier des charges. Responsable et échéance à définir. ${a.title}`,
     })),
     prompts: SITES.flatMap((site) =>
-      questions[site.id]!.map((question, i) => ({
+      (questions[site.id] ?? []).map((question, i) => ({
         id: `prompt-${site.id}-${i}`,
         siteId: site.id,
         question,
@@ -155,13 +155,33 @@ export async function seed() {
         site.id,
       ]);
     }
+    // These inserts intentionally run on every deployment. This lets the tracked-site
+    // inventory grow without resetting the team's existing workspace or observations.
+    for (const page of state.pages)
+      await client.query(
+        "INSERT INTO records(collection,id,site_id,payload,origin) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
+        ["pages", page.id, page.siteId, JSON.stringify(page), "public_html"],
+      );
+    for (const page of PUBLIC_PAGES) {
+      const site = SITES.find((s) => new URL(page.url).hostname === s.host);
+      if (!site) continue;
+      await client.query(
+        "INSERT INTO public_observations(url,site_id,observed_at,payload) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
+        [
+          page.url,
+          site.id,
+          "observedAt" in page ? page.observedAt : PUBLIC_CHECKED_AT,
+          JSON.stringify(page),
+        ],
+      );
+    }
     // Run once. Re-running migrations never restores records deliberately removed by the team.
     await client.query(
       "CREATE TABLE IF NOT EXISTS seed_versions(version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())",
     );
     if ((await client.query("SELECT version FROM seed_versions WHERE version='real-v1'")).rowCount)
       return;
-    for (const collection of ["keywords", "prompts", "actions", "pages"] as const)
+    for (const collection of ["keywords", "prompts", "actions"] as const)
       for (const item of state[collection])
         await client.query(
           "INSERT INTO records(collection,id,site_id,payload,origin) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
@@ -170,21 +190,11 @@ export async function seed() {
             item.id,
             item.siteId ?? "ambs",
             JSON.stringify(item),
-            collection === "pages" ? "public_html" : "reference",
+            "reference",
           ],
         );
     for (const name of state.families)
       await client.query("INSERT INTO families(name) VALUES($1) ON CONFLICT DO NOTHING", [name]);
-    for (const p of PUBLIC_PAGES)
-      await client.query(
-        "INSERT INTO public_observations(url,site_id,observed_at,payload) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
-        [
-          p.url,
-          SITES.find((s) => new URL(p.url).hostname === s.host)!.id,
-          PUBLIC_CHECKED_AT,
-          JSON.stringify(p),
-        ],
-      );
     await client.query("INSERT INTO seed_versions(version) VALUES('real-v1')");
     await client.query("UPDATE workspace_revision SET revision=revision+1 WHERE id=1");
   });

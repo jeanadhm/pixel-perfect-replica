@@ -12,7 +12,7 @@ export function allowedPublicUrl(value: string) {
     url.password ||
     (url.port && url.port !== "443")
   )
-    throw new HttpError(400, "Seules les URL HTTPS des quatre sites AMBS sont autorisées.");
+    throw new HttpError(400, "Seules les URL HTTPS des sites suivis sont autorisées.");
   if (
     /\/(admin|auth|api|logout|login|connexion|signup|dashboard)(\/|$)/i.test(
       decodeURIComponent(url.pathname),

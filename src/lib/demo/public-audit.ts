@@ -1,5 +1,28 @@
-import { PUBLIC_PAGES } from "./public-pages";
-export type PublicPage = (typeof PUBLIC_PAGES)[number];
+export interface PublicPage {
+  url: string;
+  finalUrl: string;
+  status: number;
+  title: string;
+  h1: string;
+  name: string;
+  meta: string;
+  source: string;
+  observedAt?: string;
+  technical:
+    | {
+        meta: string;
+        canonical: string;
+        robots: string;
+        h1Count: number;
+        h2Count: number;
+        imageCount: number;
+        missingAltCount: number;
+        internalLinks: number;
+        schemaBlocks: number;
+        wordCount: number;
+      }
+    | null;
+}
 export function publicFindings(page: PublicPage): string[] {
   if (page.status !== 200)
     return [`Réponse HTTP ${page.status || "non obtenue"} : vérifier le lien ou la redirection.`];
