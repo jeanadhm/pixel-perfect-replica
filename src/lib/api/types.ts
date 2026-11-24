@@ -27,6 +27,7 @@ export interface SyncRun {
 export interface Connections {
   googleConfigured: boolean;
   googleConnected: boolean;
+  dataForSeoConfigured: boolean;
   sites: Integration[];
   runs: SyncRun[];
 }
@@ -50,6 +51,8 @@ export interface Metrics {
   siteIds?: string[];
   startDate: string;
   endDate: string;
+  searchEndDate?: string;
+  analyticsEndDate?: string;
   search: {
     site_id: string;
     day: string;

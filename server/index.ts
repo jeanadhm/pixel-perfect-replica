@@ -6,6 +6,7 @@ import { seed } from "./seed";
 import { synchronizeGoogleNow } from "./google";
 import { probeAllCompetitors } from "./competitors";
 import { reconcileAutomaticActions } from "./automation";
+import { crawlDueSites } from "./site-crawler";
 if (!config.databaseUrl)
   throw new Error("DATABASE_URL manquant. Exécuter npm run db:local ou configurer .env.");
 await migrate();
@@ -40,6 +41,16 @@ if (config.autoSyncEnabled) {
           console.log(`Surveillance concurrentielle : ${competitors.length} site(s) relevé(s).`);
       } catch {
         console.error("Surveillance concurrentielle automatique non exécutée.");
+      }
+      try {
+        const crawls = await crawlDueSites();
+        if (crawls.length)
+          console.log(
+            `Crawl sitemap : ${crawls.reduce((sum, crawl) => sum + crawl.completed, 0)} page(s) relevée(s).`,
+          );
+      } catch {
+        // A sitemap that is unavailable must never prevent the rest of the visibility pipeline.
+        console.error("Crawl sitemap automatique non exécuté.");
       }
       const actions = await reconcileAutomaticActions();
       if (actions.created || actions.restored || actions.resolved)

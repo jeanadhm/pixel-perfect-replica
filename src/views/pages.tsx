@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { RefreshCw, Radar } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -33,7 +34,7 @@ import {
 import { fdate, nf } from "@/lib/demo/utils";
 
 function PagesPage() {
-  const { pages } = useDemo();
+  const { pages, siteScope } = useDemo();
   const [status, setStatus] = useState("all"),
     [selected, setSelected] = useState<string | null>(null);
   const current = pages.find((p) => p.id === selected);
@@ -41,8 +42,13 @@ function PagesPage() {
     <>
       <PageHeader
         title="Pages & Contenus"
-        description="Centralisez les pages de votre site, leur indexation et les optimisations à préparer."
-        actions={<NewPageDialog />}
+        description="Sitemaps, relevés techniques, clics Search Console et recommandations éditoriales au même endroit."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <CrawlPagesButton siteId={siteScope} />
+            <NewPageDialog />
+          </div>
+        }
       />
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Pages suivies" value={pages.length} />
@@ -61,6 +67,12 @@ function PagesPage() {
           value={pages.filter((p) => p.geoContent).length}
           tone="geo"
         />
+      </div>
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+        <b className="text-foreground">Mesures automatiques :</b> les pages publiques sont découvertes depuis
+        les sitemaps et robots.txt, puis relevées techniquement. Les clics viennent de Search Console une
+        fois la source synchronisée. L’indexation reste explicitement à vérifier tant qu’elle n’est pas
+        confirmée par Google.
       </div>
       <DataTable
         rows={pages.filter((p) => status === "all" || p.published === status)}
@@ -128,6 +140,35 @@ function PagesPage() {
         </SheetContent>
       </Sheet>
     </>
+  );
+}
+
+function CrawlPagesButton({ siteId }: { siteId: string }) {
+  const { refresh, user } = useDemo();
+  const [loading, setLoading] = useState(false);
+  async function crawl() {
+    try {
+      setLoading(true);
+      const path = siteId === "all" ? "/api/crawl/all" : `/api/crawl/site/${encodeURIComponent(siteId)}`;
+      const result = await fetch(path, { method: "POST", credentials: "same-origin" });
+      const data = await result.json().catch(() => ({}));
+      if (!result.ok) throw new Error(data.error ?? "Crawl indisponible");
+      await refresh();
+      if (Array.isArray(data.sites)) {
+        const completed = data.sites.reduce((sum: number, item: any) => sum + (item.completed ?? 0), 0);
+        toast.success(`${completed} page(s) relevée(s) sur le portefeuille.`);
+      } else toast.success(`${data.completed ?? 0} page(s) relevée(s) depuis le sitemap.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Crawl indisponible");
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <Button variant="outline" disabled={loading || user?.role === "viewer"} onClick={() => void crawl()}>
+      {loading ? <RefreshCw className="size-4 animate-spin" /> : <Radar className="size-4" />}
+      {loading ? "Analyse en cours…" : "Analyser les pages"}
+    </Button>
   );
 }
 function PageEditor({ page }: { page: SitePage }) {

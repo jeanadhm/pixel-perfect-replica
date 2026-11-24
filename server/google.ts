@@ -278,12 +278,30 @@ export async function syncGoogle(
           },
         ],
       };
-      const daily = await google(url, { ...base, dimensions: ["date"], rowLimit: 25000 });
+      let queryBase = base;
+      let daily = await google(url, { ...queryBase, dimensions: ["date"], rowLimit: 25000 });
+      // Google can temporarily return no final rows while its Search Console aggregates are
+      // being refreshed. Retry against all available data before treating the import as empty.
+      if (!(daily.rows?.length ?? 0)) {
+        queryBase = { ...base, dataState: "all" };
+        daily = await google(url, { ...queryBase, dimensions: ["date"], rowLimit: 25000 });
+      }
+      if (!(daily.rows?.length ?? 0)) {
+        const existing = await pool.query(
+          "SELECT count(*)::int AS count FROM search_daily WHERE site_id=$1 AND day BETWEEN $2 AND $3",
+          [siteId, startDate, endDate],
+        );
+        if (existing.rows[0].count > 0)
+          throw new HttpError(
+            502,
+            "Search Console n’a renvoyé aucune donnée pour cette période. Les données précédentes sont conservées ; réessayez au prochain relevé.",
+          );
+      }
       const details: any[] = [];
       let truncated = false;
       for (let startRow = 0; startRow < 100000; startRow += 25000) {
         const part = await google(url, {
-          ...base,
+          ...queryBase,
           dimensions: ["query", "page"],
           rowLimit: 25000,
           startRow,
@@ -295,6 +313,19 @@ export async function syncGoogle(
       notes =
         "Données finales Google, recherche web, filtrées sur ce domaine. Requêtes limitées aux lignes retournées par Google (requêtes anonymisées exclues)." +
         (truncated ? " Limite de 100 000 lignes atteinte." : "");
+      // Search Console returns query/page pairs. Aggregate the pairs before
+      // updating the crawler-owned page inventory so the UI never presents a
+      // manually entered click count as a Google metric.
+      const pageMetrics = new Map<string, { clicks: number; impressions: number }>();
+      for (const row of details) {
+        const page = row.keys?.[1];
+        if (typeof page !== "string") continue;
+        const previous = pageMetrics.get(page) ?? { clicks: 0, impressions: 0 };
+        pageMetrics.set(page, {
+          clicks: previous.clicks + Number(row.clicks ?? 0),
+          impressions: previous.impressions + Number(row.impressions ?? 0),
+        });
+      }
       await transaction(async (client) => {
         await client.query("SELECT revision FROM workspace_revision WHERE id=1 FOR UPDATE");
         await client.query("DELETE FROM search_daily WHERE site_id=$1 AND day BETWEEN $2 AND $3", [
@@ -362,6 +393,18 @@ export async function syncGoogle(
           await client.query(
             "INSERT INTO records(collection,id,site_id,payload,origin,source_url,observed_at) VALUES('keywords',$1,$2,$3,'gsc',$4,now()) ON CONFLICT(collection,id) DO UPDATE SET payload=EXCLUDED.payload,observed_at=now(),updated_at=now()",
             [id, siteId, JSON.stringify(payload), property],
+          );
+        }
+        for (const [page, metrics] of pageMetrics) {
+          await client.query(
+            `UPDATE records
+             SET payload=payload || jsonb_build_object(
+               'clicks',$3::numeric,
+               'indexed',CASE WHEN $4::numeric>0 THEN 'Indexée' ELSE payload->>'indexed' END
+             ), observed_at=now(), updated_at=now()
+             WHERE collection='pages' AND site_id=$1
+               AND regexp_replace(payload->>'url','/$','')=regexp_replace($2,'/$','')`,
+            [siteId, page, metrics.clicks, metrics.impressions],
           );
         }
         await client.query(

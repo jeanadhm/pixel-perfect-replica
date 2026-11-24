@@ -20,6 +20,8 @@ import {
 import { importLeads } from "./imports";
 import { SITES } from "../src/lib/demo/sites";
 import { crawlPage } from "./crawl";
+import { crawlAllSites, crawlSite } from "./site-crawler";
+import { dataForSeoConfigured, synchronizeBacklinks } from "./dataforseo";
 import { latestCompetitorObservations, probeCompetitor } from "./competitors";
 import { reconcileAutomaticActions } from "./automation";
 declare global {
@@ -209,6 +211,12 @@ export function createApp() {
     const { url } = z.object({ url: z.string().url() }).parse(req.body);
     res.json(await crawlPage(url, req.user!.id));
   });
+  app.post("/api/crawl/site/:siteId", editor, async (req, res) => {
+    res.json(await crawlSite(String(req.params["siteId"]), req.user!.id));
+  });
+  app.post("/api/crawl/all", editor, async (req, res) => {
+    res.json({ sites: await crawlAllSites(req.user!.id) });
+  });
   app.get("/api/competitors/observations", async (_req, res) =>
     res.json({ observations: await latestCompetitorObservations() }),
   );
@@ -227,10 +235,14 @@ export function createApp() {
     res.json({
       googleConfigured: googleConfigured(),
       googleConnected: !!(await pool.query("SELECT id FROM google_tokens")).rowCount,
+      dataForSeoConfigured: dataForSeoConfigured(),
       sites: (await pool.query("SELECT * FROM integrations ORDER BY site_id")).rows,
       runs: (await pool.query("SELECT * FROM sync_runs ORDER BY started_at DESC LIMIT 30")).rows,
     }),
   );
+  app.post("/api/backlinks/synchronize/:siteId", editor, async (req, res) => {
+    res.json(await synchronizeBacklinks(String(req.params["siteId"])));
+  });
   app.put("/api/integrations/:siteId", admin, async (req, res) => {
     const id = String(req.params["siteId"]),
       site = SITES.find((s) => s.id === id);
@@ -343,29 +355,40 @@ export function createApp() {
       siteId = String(req.query["site"] ?? "all");
     if (siteId !== "all" && !SITES.some((s) => s.id === siteId))
       throw new HttpError(400, "Site inconnu");
-    const end = new Date();
-    end.setUTCDate(end.getUTCDate() - 1);
-    const start = new Date(end);
+    const analyticsEnd = new Date();
+    analyticsEnd.setUTCDate(analyticsEnd.getUTCDate() - 1);
+    const searchEnd = new Date();
+    searchEnd.setUTCDate(searchEnd.getUTCDate() - 3);
+    const start = new Date(analyticsEnd);
     start.setUTCDate(start.getUTCDate() - days + 1);
     const startDate = start.toISOString().slice(0, 10),
-      endDate = end.toISOString().slice(0, 10);
+      analyticsEndDate = analyticsEnd.toISOString().slice(0, 10),
+      searchEndDate = searchEnd.toISOString().slice(0, 10);
     const [search, analytics, runs] = await Promise.all([
       pool.query(
         "SELECT site_id,day::text,clicks::float8,impressions::float8,position::float8,source_property,fetched_at FROM search_daily WHERE day BETWEEN $1 AND $2 AND ($3='all' OR site_id=$3) ORDER BY day",
-        [startDate, endDate, siteId],
+        [startDate, searchEndDate, siteId],
       ),
       pool.query(
         "SELECT site_id,day::text,source,medium,sessions::float8,engaged_sessions::float8,key_events::float8,source_property,fetched_at FROM analytics_daily WHERE day BETWEEN $1 AND $2 AND ($3='all' OR site_id=$3) ORDER BY day",
-        [startDate, endDate, siteId],
+        [startDate, analyticsEndDate, siteId],
       ),
       pool.query(
-        "SELECT site_id,provider,start_date::text,end_date::text,finished_at,message FROM sync_runs WHERE status='success' AND start_date<=$2 AND end_date>=$1 AND ($3='all' OR site_id=$3) ORDER BY finished_at DESC",
-        [startDate, endDate, siteId],
+        `SELECT site_id,provider,start_date::text,end_date::text,finished_at,message
+         FROM sync_runs
+         WHERE status='success' AND (
+           (provider='gsc' AND start_date<=$2 AND end_date>=$1) OR
+           (provider='ga4' AND start_date<=$3 AND end_date>=$1)
+         ) AND ($4='all' OR site_id=$4)
+         ORDER BY finished_at DESC`,
+        [startDate, searchEndDate, analyticsEndDate, siteId],
       ),
     ]);
     res.json({
       startDate,
-      endDate,
+      endDate: analyticsEndDate,
+      searchEndDate,
+      analyticsEndDate,
       siteIds: SITES.filter((s) => siteId === "all" || s.id === siteId).map((s) => s.id),
       search: search.rows,
       analytics: analytics.rows,

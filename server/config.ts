@@ -16,4 +16,12 @@ export const config = {
     24 * 60,
     Math.max(30, Number(process.env["AUTO_SYNC_INTERVAL_MINUTES"] ?? 240) || 240),
   ),
+  autoCrawlIntervalHours: Math.min(
+    168,
+    Math.max(12, Number(process.env["AUTO_CRAWL_INTERVAL_HOURS"] ?? 24) || 24),
+  ),
+  // Kept exclusively on the server. DataForSEO uses HTTP Basic authentication;
+  // never expose either value through a VITE_/NEXT_PUBLIC_ variable.
+  dataForSeoLogin: process.env["DATAFORSEO_LOGIN"] ?? "",
+  dataForSeoPassword: process.env["DATAFORSEO_PASSWORD"] ?? "",
 };

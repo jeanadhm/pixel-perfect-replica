@@ -5,7 +5,10 @@ export function coverage(metrics: Metrics | null, provider: "gsc" | "ga4") {
   if (metrics) {
     for (
       let t = Date.parse(metrics.startDate);
-      t <= Date.parse(metrics.endDate) && dates.length < 366;
+      t <=
+        Date.parse(
+          provider === "gsc" ? (metrics.searchEndDate ?? metrics.endDate) : metrics.endDate,
+        ) && dates.length < 366;
       t += 86400000
     )
       dates.push(new Date(t).toISOString().slice(0, 10));

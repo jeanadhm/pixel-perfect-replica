@@ -64,9 +64,24 @@ Colonnes : `externalId,company,date,source,channel,url,value,status,attributionE
 
 Le triplet site / nom du système source / identifiant externe rend le réimport idempotent : utiliser le même nom de source d’un import à l’autre. Le réimport remplace les champs des fiches correspondantes et conserve leur responsable déjà attribué. Les fiches sans identifiant ou preuve sont refusées. N’importer que des contacts que l’équipe est autorisée à traiter.
 
+## Crawl, pages et backlinks
+
+Le hub découvre automatiquement les URL publiques déclarées dans les sitemaps et `robots.txt`, puis
+relève leur état HTTP, title, meta description, H1/H2, canonique, liens internes, images et JSON-LD.
+Le score affiché est strictement technique : il ne prétend pas mesurer une position Google ni la
+qualité éditoriale. Les clics d'une page sont mis à jour depuis Search Console quand la source est
+reliée. L'indexation n'est jamais déduite du crawl HTML : elle reste à vérifier tant qu'elle n'est pas
+confirmée côté Google.
+
+Les backlinks exigent un fournisseur spécialisé. Le connecteur DataForSEO est optionnel et déclenché
+manuellement pour éviter une consommation de crédit involontaire. Renseigner côté serveur uniquement
+`DATAFORSEO_LOGIN` et `DATAFORSEO_PASSWORD`; les lignes importées conservent leur URL source et leur
+date de relevé. Sans cette connexion, l'interface indique clairement l'absence de source plutôt que
+d'afficher des données fictives.
+
 ## Rubriques
 
-Vue générale, Sites & Liens, SEO, GEO, Mots-clés, Prompts, Actions, Contenus, Audit, Backlinks, Concurrents, Leads, Rapports, Connexions, Paramètres. Les actions peuvent être reliées aux mots-clés, prompts et pages ; les audits documentent les contrôles et les preuves. Backlinks et concurrents restent des relevés manuels. Exports CSV et rapport PDF incluent le périmètre et les limites de mesure. L’export JSON des paramètres est un export du référentiel, pas une sauvegarde complète de PostgreSQL.
+Vue générale, Sites & Liens, SEO, GEO, Mots-clés, Prompts, Actions, Contenus, Audit, Backlinks, Concurrents, Leads, Rapports, Connexions, Paramètres. Les actions peuvent être reliées aux mots-clés, prompts et pages ; les audits documentent les contrôles et les preuves. Les concurrents disposent d'un relevé public automatisable (disponibilité, redirections et structure HTML). Les positions, part de voix, backlinks et citations IA demandent des fournisseurs dédiés et ne sont pas estimés. Exports CSV et rapport PDF incluent le périmètre et les limites de mesure. L’export JSON des paramètres est un export du référentiel, pas une sauvegarde complète de PostgreSQL.
 
 ## Structure et exploitation
 

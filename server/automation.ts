@@ -109,6 +109,38 @@ async function candidates(): Promise<Candidate[]> {
       kpi: "Relevé concurrentiel public réussi",
       proofUrl: row.site,
     });
+  const crawlRows = await pool.query(`
+    SELECT site_id,
+      count(*) FILTER (WHERE coalesce((payload->>'status')::int, 0) < 200 OR coalesce((payload->>'status')::int, 0) >= 400)::int AS unavailable,
+      count(*) FILTER (WHERE coalesce((payload->'technical'->>'h1Count')::int, 0) <> 1)::int AS h1_issues,
+      count(*) FILTER (WHERE coalesce(payload->'technical'->>'meta', '') = '')::int AS meta_issues
+    FROM public_observations
+    GROUP BY site_id
+  `);
+  for (const row of crawlRows.rows) {
+    const site = GOOGLE_SITES.find((candidate) => candidate.id === row.site_id);
+    if (!site) continue;
+    const unavailable = Number(row.unavailable ?? 0),
+      h1Issues = Number(row.h1_issues ?? 0),
+      metaIssues = Number(row.meta_issues ?? 0);
+    if (!unavailable && !h1Issues && !metaIssues) continue;
+    const findings = [
+      unavailable ? `${unavailable} URL indisponible(s)` : "",
+      h1Issues ? `${h1Issues} H1 à vérifier` : "",
+      metaIssues ? `${metaIssues} meta description(s) absente(s)` : "",
+    ].filter(Boolean);
+    next.push({
+      key: `${site.id}:crawl:technical`,
+      siteId: site.id,
+      title: `Traiter les alertes techniques — ${site.name}`,
+      description: `Le dernier crawl public signale : ${findings.join(" · ")}. Ouvrez Pages & Contenus pour les URL et les preuves HTTP.`,
+      category: "SEO",
+      priority: unavailable ? "Haute" : "Moyenne",
+      target: site.url,
+      kpi: "Alertes techniques résolues",
+      proofUrl: site.url,
+    });
+  }
   return next;
 }
 

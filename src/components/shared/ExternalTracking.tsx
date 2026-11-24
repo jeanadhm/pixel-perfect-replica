@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { CircleAlert, RefreshCw, ShieldCheck } from "lucide-react";
+import { CircleAlert, Link2, RefreshCw, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { uid, useDemo } from "@/lib/demo/store";
 import type { Backlink, Competitor } from "@/lib/demo/types";
@@ -178,6 +178,48 @@ function BacklinkEditor({ item }: { item?: Backlink }) {
     </Editor>
   );
 }
+
+function BacklinkSync() {
+  const { connections, refresh, siteScope, user } = useDemo();
+  const [loading, setLoading] = useState(false);
+  const scoped = siteScope === "all" ? "ambs" : siteScope;
+  async function synchronize() {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/backlinks/synchronize/${encodeURIComponent(scoped)}`, {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Synchronisation des backlinks indisponible");
+      await refresh();
+      toast.success(`${data.imported ?? 0} backlink(s) relevé(s) depuis DataForSEO.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Synchronisation des backlinks indisponible");
+    } finally {
+      setLoading(false);
+    }
+  }
+  if (!connections.dataForSeoConfigured)
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">
+        <b>Source backlinks à connecter.</b> Ajoutez <code>DATAFORSEO_LOGIN</code> et
+        <code> DATAFORSEO_PASSWORD</code> dans les variables Dokploy. Les boutons manuels restent
+        disponibles pour une preuve ponctuelle, mais aucun lien n’est inventé.
+      </div>
+    );
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+      <p className="text-muted-foreground">
+        <b className="text-foreground">DataForSEO relié.</b> Relevé réel à la demande pour le site sélectionné.
+      </p>
+      <Button size="sm" variant="outline" disabled={loading || user?.role === "viewer"} onClick={() => void synchronize()}>
+        <RefreshCw className={loading ? "size-4 animate-spin" : "size-4"} />
+        {loading ? "Synchronisation…" : "Synchroniser les backlinks"}
+      </Button>
+    </div>
+  );
+}
 function CompetitorEditor({ item }: { item?: Competitor }) {
   const { update } = useDemo();
   return (
@@ -290,9 +332,18 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
       <div className="space-y-6">
         <PageHeader
           title="Autorité & Backlinks"
-          description="Documentez les liens observés et les opportunités à travailler, avec leur URL source."
+          description="Liens entrants observés, sources vérifiables et opportunités de netlinking par site."
           actions={<BacklinkEditor />}
         />
+        <div className="flex items-start gap-3 rounded-xl border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
+          <Link2 className="mt-0.5 size-5 shrink-0 text-primary" />
+          <p>
+            Les backlinks nécessitent une base de données dédiée : Google ne fournit pas cet inventaire
+            via Search Console. Les données DataForSEO sont importées avec leur URL source et leur date de
+            relevé ; les métriques d’autorité restent celles du fournisseur, pas une estimation AMBS.
+          </p>
+        </div>
+        <BacklinkSync />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Kpi label="Liens suivis" value={backlinks.length} />
           <Kpi label="Domaines référents" value={new Set(backlinks.map((b) => b.domain)).size} />

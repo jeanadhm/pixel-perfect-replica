@@ -197,7 +197,7 @@ export function PortfolioOverview() {
           title="Trafic organique vérifié"
           description={
             stats.searchKnown
-              ? `${metrics?.startDate} au ${metrics?.endDate} · Search Console`
+              ? `${metrics?.startDate} au ${metrics?.searchEndDate ?? metrics?.endDate} · Search Console (données finales)`
               : "Aucune source de trafic synchronisée"
           }
         >

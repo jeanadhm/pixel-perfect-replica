@@ -67,6 +67,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const [connections, setConnections] = useState<Connections>({
     googleConfigured: false,
     googleConnected: false,
+    dataForSeoConfigured: false,
     sites: [],
     runs: [],
   });
