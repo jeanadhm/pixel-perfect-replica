@@ -81,7 +81,7 @@ d'afficher des données fictives.
 
 ## Rubriques
 
-Vue générale, Sites & Liens, SEO, GEO, Mots-clés, Prompts, Actions, Contenus, Audit, Backlinks, Concurrents, Leads, Rapports, Connexions, Paramètres. Les actions peuvent être reliées aux mots-clés, prompts et pages ; les audits documentent les contrôles et les preuves. Les concurrents disposent d'un relevé public automatisable (disponibilité, redirections et structure HTML). Les positions, part de voix, backlinks et citations IA demandent des fournisseurs dédiés et ne sont pas estimés. Exports CSV et rapport PDF incluent le périmètre et les limites de mesure. L’export JSON des paramètres est un export du référentiel, pas une sauvegarde complète de PostgreSQL.
+Vue générale, Sites & Liens, SEO, GEO, Mots-clés, Prompts, Actions, Contenus, Audit, Backlinks, Concurrents, Leads, Rapports, Connexions, Paramètres. Les actions peuvent être reliées aux mots-clés, prompts et pages ; les audits documentent les contrôles et les preuves. Les concurrents sont relevés automatiquement sur leur disponibilité, redirections et structure HTML, indépendamment de la connexion Google. Les positions, part de voix, backlinks et citations IA demandent des fournisseurs dédiés et ne sont pas estimés. Exports CSV et rapport PDF incluent le périmètre et les limites de mesure. L’export JSON des paramètres est un export du référentiel, pas une sauvegarde complète de PostgreSQL.
 
 ## Structure et exploitation
 

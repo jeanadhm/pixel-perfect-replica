@@ -18,10 +18,11 @@ await pool.query(
 const server = createApp().listen(config.port, config.host, () =>
   console.log(`API AMBS : http://${config.host}:${config.port} · PostgreSQL connecté`),
 );
-let automation: ReturnType<typeof setInterval> | undefined;
+let googleAutomation: ReturnType<typeof setInterval> | undefined;
+let monitoringAutomation: ReturnType<typeof setInterval> | undefined;
 if (config.autoSyncEnabled) {
   let syncing = false;
-  const runAutomation = async () => {
+  const runGoogleSynchronization = async () => {
     if (syncing) return;
     syncing = true;
     try {
@@ -35,6 +36,27 @@ if (config.autoSyncEnabled) {
         // A temporary Google failure must not suspend public competitor checks.
         console.error("Synchronisation Google automatique non exécutée.");
       }
+    } catch {
+      // The scheduler must remain available after an unexpected programming/runtime error.
+      console.error("Automatisation de visibilité interrompue.");
+    } finally {
+      syncing = false;
+    }
+  };
+  const initial = setTimeout(() => void runGoogleSynchronization(), 15000);
+  initial.unref();
+  googleAutomation = setInterval(
+    () => void runGoogleSynchronization(),
+    config.autoSyncIntervalMinutes * 60 * 1000,
+  );
+  googleAutomation.unref();
+}
+if (config.autoMonitoringEnabled) {
+  let monitoring = false;
+  const runPublicMonitoring = async () => {
+    if (monitoring) return;
+    monitoring = true;
+    try {
       try {
         const competitors = await probeAllCompetitors();
         if (competitors.length)
@@ -49,7 +71,6 @@ if (config.autoSyncEnabled) {
             `Crawl sitemap : ${crawls.reduce((sum, crawl) => sum + crawl.completed, 0)} page(s) relevée(s).`,
           );
       } catch {
-        // A sitemap that is unavailable must never prevent the rest of the visibility pipeline.
         console.error("Crawl sitemap automatique non exécuté.");
       }
       const actions = await reconcileAutomaticActions();
@@ -58,19 +79,22 @@ if (config.autoSyncEnabled) {
           `Tâches automatiques : ${actions.active} active(s), ${actions.created} créée(s), ${actions.resolved} résolue(s).`,
         );
     } catch {
-      // The scheduler must remain available after an unexpected programming/runtime error.
-      console.error("Automatisation de visibilité interrompue.");
+      console.error("Surveillance publique automatique interrompue.");
     } finally {
-      syncing = false;
+      monitoring = false;
     }
   };
-  const initial = setTimeout(() => void runAutomation(), 15000);
+  const initial = setTimeout(() => void runPublicMonitoring(), 25000);
   initial.unref();
-  automation = setInterval(() => void runAutomation(), config.autoSyncIntervalMinutes * 60 * 1000);
-  automation.unref();
+  monitoringAutomation = setInterval(
+    () => void runPublicMonitoring(),
+    config.autoMonitoringIntervalMinutes * 60 * 1000,
+  );
+  monitoringAutomation.unref();
 }
 async function stop() {
-  if (automation) clearInterval(automation);
+  if (googleAutomation) clearInterval(googleAutomation);
+  if (monitoringAutomation) clearInterval(monitoringAutomation);
   server.close();
   await pool.end();
   process.exit(0);

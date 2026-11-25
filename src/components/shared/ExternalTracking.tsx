@@ -301,32 +301,13 @@ function CompetitorEditor({ item }: { item?: Competitor }) {
   );
 }
 export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }) {
-  const { backlinks, competitors, competitorObservations, refresh, user } = useDemo();
-  const [probingId, setProbingId] = useState<string | null>(null);
+  const { backlinks, competitors, competitorObservations } = useDemo();
   const observationById = useMemo(
     () =>
       new Map(competitorObservations.map((observation) => [observation.competitorId, observation])),
     [competitorObservations],
   );
 
-  async function probe(id: string) {
-    try {
-      setProbingId(id);
-      const result = await fetch(`/api/competitors/${encodeURIComponent(id)}/probe`, {
-        method: "POST",
-        credentials: "same-origin",
-      });
-      const data = await result.json().catch(() => ({}));
-      if (!result.ok) throw new Error(data.error ?? "Contrôle concurrentiel indisponible");
-      await refresh();
-      if (data.observation?.error) toast.warning(`Contrôle terminé : ${data.observation.error}`);
-      else toast.success("Relevé concurrentiel public enregistré.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Contrôle concurrentiel indisponible");
-    } finally {
-      setProbingId(null);
-    }
-  }
   if (kind === "backlinks")
     return (
       <div className="space-y-6">
@@ -415,7 +396,7 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
     <div className="space-y-6">
       <PageHeader
         title="Concurrents"
-        description="Chaque concurrent ajouté peut être contrôlé depuis sa page publique. Les métriques de rang et de part de voix restent non mesurées tant qu’aucune source SERP autorisée n’est reliée."
+        description="Les concurrents enregistrés sont contrôlés automatiquement depuis leur page publique."
         actions={<CompetitorEditor />}
       />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -431,7 +412,7 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
           label="À vérifier"
           value={competitors.filter((competitor) => !observationById.has(competitor.id)).length}
           tone="primary"
-          sub="Aucun relevé encore enregistré"
+          sub="En attente du premier passage automatique"
         />
         <Kpi
           label="Erreurs de contrôle"
@@ -442,7 +423,7 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
         />
       </div>
       <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground">
-        <b className="text-foreground">Ce qui est vérifié automatiquement :</b> disponibilité HTTPS,
+        <b className="text-foreground">Surveillance automatique, toutes les 12 heures :</b> disponibilité HTTPS,
         redirections, titre, meta description, robots, H1, H2, données structurées et volume de
         texte. <b className="text-foreground">Ce qui nécessite une source distincte :</b> positions
         Google, part de voix, volume et visibilité IA. Le hub les laisse donc inconnus plutôt que de
@@ -467,7 +448,7 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
             render: (c) => {
               const observation = observationById.get(c.id);
               if (!observation)
-                return <span className="text-xs text-muted-foreground">À lancer</span>;
+                return <span className="text-xs text-muted-foreground">Premier passage automatique en attente</span>;
               if (observation.error)
                 return (
                   <span className="max-w-52 text-xs text-destructive" title={observation.error}>
@@ -513,17 +494,6 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
             label: "Suivi",
             render: (c) => (
               <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={probingId === c.id || user?.role === "viewer"}
-                  onClick={() => void probe(c.id)}
-                >
-                  <RefreshCw
-                    className={probingId === c.id ? "size-3.5 animate-spin" : "size-3.5"}
-                  />
-                  {probingId === c.id ? "Contrôle…" : "Relever"}
-                </Button>
                 <CompetitorEditor item={c} />
                 <NewActionDialog
                   defaults={{

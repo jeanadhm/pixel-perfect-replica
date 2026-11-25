@@ -42,6 +42,14 @@ site et par jour par défaut. Pour modifier ce rythme :
 AUTO_CRAWL_INTERVAL_HOURS=24
 ```
 
+La surveillance des concurrents est indépendante de Google et se lance automatiquement, y compris
+si les identifiants Google ne sont pas configurés. Réglage recommandé :
+
+```env
+AUTO_MONITORING_ENABLED=true
+AUTO_MONITORING_INTERVAL_MINUTES=720
+```
+
 Pour importer de vrais backlinks, créer un compte DataForSEO puis ajouter ses identifiants API dans
 Dokploy. Cette source est facturée à l'usage : ne pas lancer des synchronisations de masse sans
 contrôler le crédit du compte.

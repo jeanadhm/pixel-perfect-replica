@@ -16,6 +16,12 @@ export const config = {
     24 * 60,
     Math.max(30, Number(process.env["AUTO_SYNC_INTERVAL_MINUTES"] ?? 240) || 240),
   ),
+  // Public monitoring must not depend on a Google OAuth connection being enabled.
+  autoMonitoringEnabled: process.env["AUTO_MONITORING_ENABLED"] !== "false",
+  autoMonitoringIntervalMinutes: Math.min(
+    24 * 60,
+    Math.max(30, Number(process.env["AUTO_MONITORING_INTERVAL_MINUTES"] ?? 720) || 720),
+  ),
   autoCrawlIntervalHours: Math.min(
     168,
     Math.max(12, Number(process.env["AUTO_CRAWL_INTERVAL_HOURS"] ?? 24) || 24),
