@@ -8,6 +8,8 @@ export const SITES = [
     focus: "Agents IA, acquisition et automatisation métier",
     family: "Marketing conversationnel",
     terms: [
+      "alternative Sandra AI concession automobile",
+      "agent vocal IA automobile",
       "agence IA conversationnelle",
       "marketing conversationnel",
       "agent IA automobile",

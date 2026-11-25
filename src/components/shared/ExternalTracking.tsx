@@ -463,7 +463,7 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
       <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground">
         <b className="text-foreground">Surveillance automatique, toutes les 12 heures :</b> disponibilité HTTPS,
         redirections, titre, meta description, robots, H1, H2, données structurées et volume de
-        texte. <b className="text-foreground">Analyse gratuite, déclenchable à la demande :</b> le Hub cherche des domaines dans un nombre limité de résultats publics Bing à partir des mots-clés mesurés et des termes métier, puis contrôle leurs pages et sous-domaines visibles. L’IA peut ensuite aider à lire les offres détectées ; elle ne crée jamais de concurrent ni de métrique. Une présence observée n’est ni une position Google ni une estimation de trafic.
+        texte. <b className="text-foreground">Analyse gratuite, déclenchable à la demande :</b> le Hub cherche des domaines dans un nombre limité de résultats publics DuckDuckGo, à partir des mots-clés mesurés et des termes métier, puis contrôle leurs pages et sous-domaines visibles. Un résumé IA éventuel devra s’appuyer sur ces sources : il ne crée jamais de concurrent ni de métrique. Une présence observée n’est ni une position Google ni une estimation de trafic.
       </div>
       <DataTable
         rows={competitors}

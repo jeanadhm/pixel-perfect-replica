@@ -20,6 +20,12 @@ const ignoredDomains = new Set([
   "wiktionary.org",
   "wordreference.com",
   "france-travail.fr",
+  "cnrtl.fr",
+  "commentcamarche.net",
+  "onisep.fr",
+  "baidu.com",
+  "zhihu.com",
+  "duckduckgo.com",
 ]);
 
 type PublicResult = { url: string; domain: string };
@@ -51,31 +57,20 @@ function decodeHtml(value: string) {
     .replace(/&#39;/gi, "'");
 }
 
-function unwrapBingRedirect(value: string) {
-  const parsed = new URL(value);
-  if (!/(^|\.)bing\.com$/i.test(parsed.hostname)) return parsed;
-  const encoded = parsed.searchParams.get("u");
-  if (!encoded?.startsWith("a1")) return parsed;
-  try {
-    const target = Buffer.from(encoded.slice(2), "base64url").toString("utf8");
-    return new URL(target);
-  } catch {
-    return parsed;
-  }
-}
-
 /**
- * Extracts only ordinary result links from Bing's public response. This is a
- * small, rate-limited discovery aid, not a ranking provider: no position,
- * traffic, or backlink metrics are inferred from the HTML.
+ * Extracts organic links from DuckDuckGo's public HTML endpoint. Discovery is
+ * intentionally source-based: it does not infer rank, traffic or a competing
+ * relationship from an LLM response.
  */
 function extractPublicResults(html: string) {
   const results: PublicResult[] = [];
-  const matches = html.matchAll(/<li[^>]+class=["'][^"']*\bb_algo\b[^"']*["'][\s\S]*?<h2[^>]*>\s*<a[^>]+href=["']([^"']+)["']/gi);
+  const matches = html.matchAll(/<a[^>]+class=["'][^"']*\bresult__a\b[^"']*["'][^>]+href=["']([^"']+)["']/gi);
   for (const match of matches) {
     try {
-      const url = decodeHtml(match[1] ?? "");
-      const parsed = unwrapBingRedirect(url);
+      const href = decodeHtml(match[1] ?? "");
+      const redirect = new URL(href, "https://duckduckgo.com");
+      const target = redirect.searchParams.get("uddg") ?? href;
+      const parsed = new URL(target);
       if (parsed.protocol !== "https:" && parsed.protocol !== "http:") continue;
       results.push({ url: parsed.href, domain: normalizeDomain(parsed.hostname) });
     } catch {
@@ -85,20 +80,19 @@ function extractPublicResults(html: string) {
   return results;
 }
 
-async function publicBingSearch(keyword: string) {
-  const url = new URL("https://www.bing.com/search");
+async function publicDuckDuckGoSearch(keyword: string) {
+  const url = new URL("https://html.duckduckgo.com/html/");
   url.searchParams.set("q", keyword);
-  url.searchParams.set("setlang", "fr-FR");
-  url.searchParams.set("cc", "fr");
+  url.searchParams.set("kl", "fr-fr");
   const response = await fetch(url, {
     signal: AbortSignal.timeout(15000),
     headers: {
       Accept: "text/html,application/xhtml+xml",
       "Accept-Language": "fr-FR,fr;q=0.9",
-      "User-Agent": "AMBS-VisibilityHub/1.0 (+https://ambs-agency.com)",
+      "User-Agent": "Mozilla/5.0 (compatible; AMBS-VisibilityHub/1.0; +https://ambs-agency.com)",
     },
   });
-  if (!response.ok) throw new HttpError(502, `La recherche publique Bing a répondu HTTP ${response.status}.`);
+  if (!response.ok) throw new HttpError(502, `La recherche publique DuckDuckGo a répondu HTTP ${response.status}.`);
   return extractPublicResults(await response.text())
     .filter((result) => !ignoredDomains.has(rootDomain(result.domain)))
     .slice(0, RESULTS_PER_KEYWORD);
@@ -118,7 +112,9 @@ async function discoveryTerms(siteId: string) {
   const gscTerms = rows.rows
     .map((row) => String(row.keyword ?? row.name ?? "").trim())
     .filter(Boolean);
-  return [...new Set([...gscTerms, ...site.terms])].slice(0, MAX_KEYWORDS);
+  // Terms describing the offer are evaluated first. This prevents a handful
+  // of generic, high-click GSC queries from masking the actual market.
+  return [...new Set([...site.terms, ...gscTerms])].slice(0, MAX_KEYWORDS);
 }
 
 export function freeCompetitorDiscoveryConfigured() {
@@ -126,7 +122,7 @@ export function freeCompetitorDiscoveryConfigured() {
 }
 
 /**
- * Creates candidates seen in public Bing results for genuine site terms.
+ * Creates candidates seen in public DuckDuckGo results for genuine site terms.
  * Every row retains its public source and intentionally leaves unknown SEO/GEO
  * metrics null. Existing manually maintained competitor records are preserved.
  */
@@ -145,7 +141,7 @@ export async function discoverFreeCompetitors(siteId: string) {
 
   for (const term of terms) {
     try {
-      const results = await publicBingSearch(term);
+      const results = await publicDuckDuckGoSearch(term);
       for (const result of results) {
         const domain = rootDomain(result.domain);
         if (!domain || managedDomains.has(domain) || ignoredDomains.has(domain)) continue;
@@ -176,11 +172,21 @@ export async function discoverFreeCompetitors(siteId: string) {
     topTerms: [...candidate.terms].slice(0, MAX_KEYWORDS),
     subdomains: [...candidate.subdomains].slice(0, 20),
     publicPages: [...candidate.pages.entries()].slice(0, 12).map(([url, label]) => ({ url, label })),
-    discoverySource: "Résultats publics Bing · présence observée",
+    discoverySource: "Résultats publics DuckDuckGo · présence observée",
     discoveredAt: observedAt,
   }));
 
   await transaction(async (client) => {
+    // Remove only the false candidates created by the retired Bing discovery.
+    // Manually recorded competitors and results from other sources remain intact.
+    await client.query(
+      `DELETE FROM records
+        WHERE collection='competitors'
+          AND site_id=$1
+          AND origin='automatic'
+          AND (payload->>'discoverySource') = 'Résultats publics Bing · présence observée'`,
+      [siteId],
+    );
     for (const record of records) {
       await client.query(
         `INSERT INTO records(collection,id,site_id,payload,origin,source_url,observed_at)
@@ -188,7 +194,7 @@ export async function discoverFreeCompetitors(siteId: string) {
          ON CONFLICT(collection,id) DO UPDATE
          SET payload = records.payload || EXCLUDED.payload,
              origin='automatic', source_url=EXCLUDED.source_url, observed_at=now(), updated_at=now()`,
-        [record.id, siteId, JSON.stringify(record), "https://www.bing.com/search"],
+        [record.id, siteId, JSON.stringify(record), "https://html.duckduckgo.com/html/"],
       );
     }
     await client.query("UPDATE workspace_revision SET revision=revision+1 WHERE id=1");
@@ -200,6 +206,6 @@ export async function discoverFreeCompetitors(siteId: string) {
     queriedTerms: terms.length,
     failedTerms: failures.length,
     observedAt,
-    source: "Résultats publics Bing",
+    source: "Résultats publics DuckDuckGo",
   };
 }
