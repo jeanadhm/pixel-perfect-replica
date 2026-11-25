@@ -302,7 +302,6 @@ function CompetitorEditor({ item }: { item?: Competitor }) {
 }
 export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }) {
   const { backlinks, competitors, competitorObservations, refresh, user, siteScope, connections } = useDemo();
-  const [refreshingCompetitors, setRefreshingCompetitors] = useState(false);
   const [discoveringCompetitors, setDiscoveringCompetitors] = useState(false);
   const observationById = useMemo(
     () =>
@@ -310,28 +309,6 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
     [competitorObservations],
   );
 
-  async function refreshCompetitors() {
-    try {
-      setRefreshingCompetitors(true);
-      const response = await fetch("/api/competitors/probe-all", {
-        method: "POST",
-        credentials: "same-origin",
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? "Actualisation des concurrents indisponible");
-      await refresh();
-      const failures = (data.observations ?? []).filter((item: any) => item.error).length;
-      toast.success(
-        failures
-          ? `Relevé terminé : ${failures} concurrent(s) à vérifier.`
-          : `${data.observations?.length ?? 0} concurrent(s) actualisé(s).`,
-      );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Actualisation des concurrents indisponible");
-    } finally {
-      setRefreshingCompetitors(false);
-    }
-  }
   async function discoverCompetitors() {
     if (siteScope === "all") {
       toast.message("Sélectionnez un site pour découvrir sa concurrence organique.");
@@ -342,8 +319,14 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
       const response = await fetch(`/api/competitors/discover-free/${encodeURIComponent(siteScope)}`, { method: "POST", credentials: "same-origin" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Découverte concurrentielle indisponible");
+      const probe = await fetch("/api/competitors/probe-all", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      const probeData = await probe.json().catch(() => ({}));
+      if (!probe.ok) throw new Error(probeData.error ?? "Contrôle des concurrents indisponible");
       await refresh();
-      toast.success(`${data.discovered ?? 0} concurrent(s) détecté(s) sur ${data.queriedTerms ?? 0} mot(s)-clé(s) public(s).`);
+      toast.success(`${data.discovered ?? 0} concurrent(s) détecté(s) et ${probeData.observations?.length ?? 0} contrôlé(s).`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Découverte concurrentielle indisponible");
     } finally {
@@ -443,20 +426,12 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
-              variant="outline"
-              disabled={refreshingCompetitors || user?.role === "viewer"}
-              onClick={() => void refreshCompetitors()}
-            >
-              <RefreshCw className={refreshingCompetitors ? "size-4 animate-spin" : "size-4"} />
-              {refreshingCompetitors ? "Actualisation…" : "Actualiser les concurrents"}
-            </Button>
-            <Button
-              variant="outline"
+              variant="default"
               disabled={discoveringCompetitors || user?.role === "viewer" || !connections.freeCompetitorDiscoveryConfigured || siteScope === "all"}
               onClick={() => void discoverCompetitors()}
             >
               <RefreshCw className={discoveringCompetitors ? "size-4 animate-spin" : "size-4"} />
-              {discoveringCompetitors ? "Découverte…" : "Découvrir gratuitement"}
+              {discoveringCompetitors ? "Analyse…" : "Analyser la concurrence"}
             </Button>
             <CompetitorEditor />
           </div>
@@ -488,7 +463,7 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
       <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground">
         <b className="text-foreground">Surveillance automatique, toutes les 12 heures :</b> disponibilité HTTPS,
         redirections, titre, meta description, robots, H1, H2, données structurées et volume de
-        texte. <b className="text-foreground">Découverte gratuite hebdomadaire :</b> le Hub interroge un nombre limité de résultats publics Bing à partir des mots-clés mesurés et des termes métier du site, puis relève leurs sous-domaines et pages visibles. Une présence observée n’est ni une position Google ni une estimation de trafic : ces métriques restent inconnues sans fournisseur dédié.
+        texte. <b className="text-foreground">Analyse gratuite, déclenchable à la demande :</b> le Hub cherche des domaines dans un nombre limité de résultats publics Bing à partir des mots-clés mesurés et des termes métier, puis contrôle leurs pages et sous-domaines visibles. L’IA peut ensuite aider à lire les offres détectées ; elle ne crée jamais de concurrent ni de métrique. Une présence observée n’est ni une position Google ni une estimation de trafic.
       </div>
       <DataTable
         rows={competitors}

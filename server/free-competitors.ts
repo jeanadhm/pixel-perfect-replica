@@ -15,6 +15,11 @@ const ignoredDomains = new Set([
   "instagram.com",
   "linkedin.com",
   "wikipedia.org",
+  "larousse.fr",
+  "lerobert.com",
+  "wiktionary.org",
+  "wordreference.com",
+  "france-travail.fr",
 ]);
 
 type PublicResult = { url: string; domain: string };
@@ -46,6 +51,19 @@ function decodeHtml(value: string) {
     .replace(/&#39;/gi, "'");
 }
 
+function unwrapBingRedirect(value: string) {
+  const parsed = new URL(value);
+  if (!/(^|\.)bing\.com$/i.test(parsed.hostname)) return parsed;
+  const encoded = parsed.searchParams.get("u");
+  if (!encoded?.startsWith("a1")) return parsed;
+  try {
+    const target = Buffer.from(encoded.slice(2), "base64url").toString("utf8");
+    return new URL(target);
+  } catch {
+    return parsed;
+  }
+}
+
 /**
  * Extracts only ordinary result links from Bing's public response. This is a
  * small, rate-limited discovery aid, not a ranking provider: no position,
@@ -57,7 +75,7 @@ function extractPublicResults(html: string) {
   for (const match of matches) {
     try {
       const url = decodeHtml(match[1] ?? "");
-      const parsed = new URL(url);
+      const parsed = unwrapBingRedirect(url);
       if (parsed.protocol !== "https:" && parsed.protocol !== "http:") continue;
       results.push({ url: parsed.href, domain: normalizeDomain(parsed.hostname) });
     } catch {
@@ -81,7 +99,9 @@ async function publicBingSearch(keyword: string) {
     },
   });
   if (!response.ok) throw new HttpError(502, `La recherche publique Bing a répondu HTTP ${response.status}.`);
-  return extractPublicResults(await response.text()).slice(0, RESULTS_PER_KEYWORD);
+  return extractPublicResults(await response.text())
+    .filter((result) => !ignoredDomains.has(rootDomain(result.domain)))
+    .slice(0, RESULTS_PER_KEYWORD);
 }
 
 async function discoveryTerms(siteId: string) {
