@@ -33,6 +33,13 @@ export const config = {
     24 * 30,
     Math.max(24, Number(process.env["AUTO_COMPETITOR_DISCOVERY_INTERVAL_HOURS"] ?? 168) || 168),
   ),
+  // Free discovery uses a small, polite set of public Bing result pages. It is
+  // deliberately weekly by default; manual runs remain available in the UI.
+  freeCompetitorDiscoveryEnabled: process.env["FREE_COMPETITOR_DISCOVERY_ENABLED"] !== "false",
+  freeCompetitorDiscoveryIntervalHours: Math.min(
+    24 * 30,
+    Math.max(24, Number(process.env["FREE_COMPETITOR_DISCOVERY_INTERVAL_HOURS"] ?? 168) || 168),
+  ),
   // Kept exclusively on the server. DataForSEO uses HTTP Basic authentication;
   // never expose either value through a VITE_/NEXT_PUBLIC_ variable.
   dataForSeoLogin: process.env["DATAFORSEO_LOGIN"] ?? "",

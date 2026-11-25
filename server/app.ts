@@ -22,6 +22,7 @@ import { SITES } from "../src/lib/demo/sites";
 import { crawlPage } from "./crawl";
 import { crawlAllSites, crawlSite } from "./site-crawler";
 import { dataForSeoConfigured, discoverCompetitors, synchronizeBacklinks } from "./dataforseo";
+import { discoverFreeCompetitors, freeCompetitorDiscoveryConfigured } from "./free-competitors";
 import { latestCompetitorObservations, probeAllCompetitors, probeCompetitor } from "./competitors";
 import { reconcileAutomaticActions } from "./automation";
 import { configuredSiteEventExportIds, siteEventExportsConfigured, siteEventSummary, syncSiteEvents } from "./site-events";
@@ -240,11 +241,15 @@ export function createApp() {
       throw new HttpError(503, "DataForSEO n’est pas configuré : la découverte automatique est indisponible.");
     res.json(await discoverCompetitors(String(req.params["siteId"])));
   });
+  app.post("/api/competitors/discover-free/:siteId", editor, async (req, res) => {
+    res.json(await discoverFreeCompetitors(String(req.params["siteId"])));
+  });
   app.get("/api/integrations", async (_req, res) =>
     res.json({
       googleConfigured: googleConfigured(),
       googleConnected: !!(await pool.query("SELECT id FROM google_tokens")).rowCount,
       dataForSeoConfigured: dataForSeoConfigured(),
+      freeCompetitorDiscoveryConfigured: freeCompetitorDiscoveryConfigured(),
       siteEventExportsConfigured: siteEventExportsConfigured(),
       siteEventExportSiteIds: configuredSiteEventExportIds(),
       sites: (await pool.query("SELECT * FROM integrations ORDER BY site_id")).rows,

@@ -1,0 +1,185 @@
+import { createHash } from "node:crypto";
+import { config } from "./config";
+import { pool, transaction } from "./db";
+import { HttpError } from "./security";
+import { SITES } from "../src/lib/demo/sites";
+
+const MAX_KEYWORDS = Math.min(12, Math.max(1, Number(process.env["FREE_COMPETITOR_KEYWORD_LIMIT"] ?? 5) || 5));
+const RESULTS_PER_KEYWORD = Math.min(6, Math.max(1, Number(process.env["FREE_COMPETITOR_RESULTS_PER_KEYWORD"] ?? 3) || 3));
+const ignoredDomains = new Set([
+  "bing.com",
+  "microsoft.com",
+  "google.com",
+  "youtube.com",
+  "facebook.com",
+  "instagram.com",
+  "linkedin.com",
+  "wikipedia.org",
+]);
+
+type PublicResult = { url: string; domain: string };
+
+function normalizeDomain(value: string) {
+  return value.trim().toLowerCase().replace(/^www\./, "");
+}
+
+function rootDomain(host: string) {
+  const labels = normalizeDomain(host).split(".");
+  return labels.length > 2 ? labels.slice(-2).join(".") : labels.join(".");
+}
+
+function domainName(domain: string) {
+  return (domain.split(".")[0] ?? domain)
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function candidateId(siteId: string, domain: string) {
+  return `public-competitor-${siteId}-${createHash("sha256").update(domain).digest("hex").slice(0, 18)}`;
+}
+
+function decodeHtml(value: string) {
+  return value
+    .replace(/&amp;/gi, "&")
+    .replace(/&#x2f;/gi, "/")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+/**
+ * Extracts only ordinary result links from Bing's public response. This is a
+ * small, rate-limited discovery aid, not a ranking provider: no position,
+ * traffic, or backlink metrics are inferred from the HTML.
+ */
+function extractPublicResults(html: string) {
+  const results: PublicResult[] = [];
+  const matches = html.matchAll(/<li[^>]+class=["'][^"']*\bb_algo\b[^"']*["'][\s\S]*?<h2[^>]*>\s*<a[^>]+href=["']([^"']+)["']/gi);
+  for (const match of matches) {
+    try {
+      const url = decodeHtml(match[1] ?? "");
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") continue;
+      results.push({ url: parsed.href, domain: normalizeDomain(parsed.hostname) });
+    } catch {
+      // Ignore non-web or malformed public links.
+    }
+  }
+  return results;
+}
+
+async function publicBingSearch(keyword: string) {
+  const url = new URL("https://www.bing.com/search");
+  url.searchParams.set("q", keyword);
+  url.searchParams.set("setlang", "fr-FR");
+  url.searchParams.set("cc", "fr");
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(15000),
+    headers: {
+      Accept: "text/html,application/xhtml+xml",
+      "Accept-Language": "fr-FR,fr;q=0.9",
+      "User-Agent": "AMBS-VisibilityHub/1.0 (+https://ambs-agency.com)",
+    },
+  });
+  if (!response.ok) throw new HttpError(502, `La recherche publique Bing a répondu HTTP ${response.status}.`);
+  return extractPublicResults(await response.text()).slice(0, RESULTS_PER_KEYWORD);
+}
+
+async function discoveryTerms(siteId: string) {
+  const site = SITES.find((item) => item.id === siteId);
+  if (!site) throw new HttpError(404, "Site inconnu.");
+  const rows = await pool.query(
+    `SELECT payload->>'keyword' AS keyword, payload->>'name' AS name
+       FROM records
+      WHERE collection='keywords' AND site_id=$1
+      ORDER BY COALESCE((payload->>'clicks')::numeric, 0) DESC, updated_at DESC
+      LIMIT 30`,
+    [siteId],
+  );
+  const gscTerms = rows.rows
+    .map((row) => String(row.keyword ?? row.name ?? "").trim())
+    .filter(Boolean);
+  return [...new Set([...gscTerms, ...site.terms])].slice(0, MAX_KEYWORDS);
+}
+
+export function freeCompetitorDiscoveryConfigured() {
+  return config.freeCompetitorDiscoveryEnabled;
+}
+
+/**
+ * Creates candidates seen in public Bing results for genuine site terms.
+ * Every row retains its public source and intentionally leaves unknown SEO/GEO
+ * metrics null. Existing manually maintained competitor records are preserved.
+ */
+export async function discoverFreeCompetitors(siteId: string) {
+  const site = SITES.find((item) => item.id === siteId);
+  if (!site) throw new HttpError(404, "Site inconnu.");
+  if (!freeCompetitorDiscoveryConfigured())
+    throw new HttpError(503, "La découverte gratuite a été désactivée par la configuration serveur.");
+
+  const terms = await discoveryTerms(siteId);
+  if (!terms.length) throw new HttpError(422, "Aucun mot-clé exploitable n’est disponible pour ce site.");
+
+  const managedDomains = new Set(SITES.map((item) => rootDomain(item.host)));
+  const candidates = new Map<string, { terms: Set<string>; pages: Map<string, string>; subdomains: Set<string> }>();
+  const failures: string[] = [];
+
+  for (const term of terms) {
+    try {
+      const results = await publicBingSearch(term);
+      for (const result of results) {
+        const domain = rootDomain(result.domain);
+        if (!domain || managedDomains.has(domain) || ignoredDomains.has(domain)) continue;
+        const candidate = candidates.get(domain) ?? { terms: new Set<string>(), pages: new Map<string, string>(), subdomains: new Set<string>() };
+        candidate.terms.add(term);
+        candidate.pages.set(result.url, term);
+        if (result.domain !== domain) candidate.subdomains.add(result.domain);
+        candidates.set(domain, candidate);
+      }
+    } catch {
+      failures.push(term);
+    }
+  }
+
+  const observedAt = new Date().toISOString();
+  const records = [...candidates.entries()].map(([domain, candidate]) => ({
+    id: candidateId(siteId, domain),
+    siteId,
+    name: domainName(domain),
+    site: `https://${domain}/`,
+    commonKeywords: candidate.terms.size,
+    seoVisibility: null,
+    shareOfVoice: null,
+    geoPresence: null,
+    aiCitations: null,
+    estimatedTraffic: null,
+    averagePosition: null,
+    topTerms: [...candidate.terms].slice(0, MAX_KEYWORDS),
+    subdomains: [...candidate.subdomains].slice(0, 20),
+    publicPages: [...candidate.pages.entries()].slice(0, 12).map(([url, label]) => ({ url, label })),
+    discoverySource: "Résultats publics Bing · présence observée",
+    discoveredAt: observedAt,
+  }));
+
+  await transaction(async (client) => {
+    for (const record of records) {
+      await client.query(
+        `INSERT INTO records(collection,id,site_id,payload,origin,source_url,observed_at)
+         VALUES('competitors',$1,$2,$3,'automatic',$4,now())
+         ON CONFLICT(collection,id) DO UPDATE
+         SET payload = records.payload || EXCLUDED.payload,
+             origin='automatic', source_url=EXCLUDED.source_url, observed_at=now(), updated_at=now()`,
+        [record.id, siteId, JSON.stringify(record), "https://www.bing.com/search"],
+      );
+    }
+    await client.query("UPDATE workspace_revision SET revision=revision+1 WHERE id=1");
+  });
+
+  return {
+    siteId,
+    discovered: records.length,
+    queriedTerms: terms.length,
+    failedTerms: failures.length,
+    observedAt,
+    source: "Résultats publics Bing",
+  };
+}

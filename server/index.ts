@@ -6,6 +6,7 @@ import { seed } from "./seed";
 import { synchronizeGoogleNow } from "./google";
 import { probeAllCompetitors } from "./competitors";
 import { discoverCompetitors, dataForSeoConfigured } from "./dataforseo";
+import { discoverFreeCompetitors, freeCompetitorDiscoveryConfigured } from "./free-competitors";
 import { reconcileAutomaticActions } from "./automation";
 import { crawlDueSites } from "./site-crawler";
 import { syncConfiguredSiteEvents } from "./site-events";
@@ -25,6 +26,7 @@ let googleAutomation: ReturnType<typeof setInterval> | undefined;
 let monitoringAutomation: ReturnType<typeof setInterval> | undefined;
 let eventAutomation: ReturnType<typeof setInterval> | undefined;
 let competitorDiscoveryAutomation: ReturnType<typeof setInterval> | undefined;
+let freeCompetitorDiscoveryAutomation: ReturnType<typeof setInterval> | undefined;
 if (config.autoSyncEnabled) {
   let syncing = false;
   const runGoogleSynchronization = async () => {
@@ -95,6 +97,29 @@ if (config.autoCompetitorDiscoveryEnabled && dataForSeoConfigured()) {
   competitorDiscoveryAutomation = setInterval(() => void runCompetitorDiscovery(), config.autoCompetitorDiscoveryIntervalHours * 60 * 60 * 1000);
   competitorDiscoveryAutomation.unref();
 }
+if (freeCompetitorDiscoveryConfigured()) {
+  let discoveringFree = false;
+  const runFreeCompetitorDiscovery = async () => {
+    if (discoveringFree) return;
+    discoveringFree = true;
+    try {
+      const outcomes = await Promise.allSettled(SITES.map((site) => discoverFreeCompetitors(site.id)));
+      const completed = outcomes.filter((outcome) => outcome.status === "fulfilled").length;
+      console.log(`Découverte concurrentielle gratuite : ${completed}/${SITES.length} site(s) analysé(s).`);
+    } catch {
+      console.error("Découverte concurrentielle gratuite non exécutée.");
+    } finally {
+      discoveringFree = false;
+    }
+  };
+  const initial = setTimeout(() => void runFreeCompetitorDiscovery(), 60000);
+  initial.unref();
+  freeCompetitorDiscoveryAutomation = setInterval(
+    () => void runFreeCompetitorDiscovery(),
+    config.freeCompetitorDiscoveryIntervalHours * 60 * 60 * 1000,
+  );
+  freeCompetitorDiscoveryAutomation.unref();
+}
 if (config.autoMonitoringEnabled) {
   let monitoring = false;
   const runPublicMonitoring = async () => {
@@ -141,6 +166,7 @@ async function stop() {
   if (monitoringAutomation) clearInterval(monitoringAutomation);
   if (eventAutomation) clearInterval(eventAutomation);
   if (competitorDiscoveryAutomation) clearInterval(competitorDiscoveryAutomation);
+  if (freeCompetitorDiscoveryAutomation) clearInterval(freeCompetitorDiscoveryAutomation);
   server.close();
   await pool.end();
   process.exit(0);

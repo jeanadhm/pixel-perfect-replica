@@ -28,6 +28,7 @@ export interface Connections {
   googleConfigured: boolean;
   googleConnected: boolean;
   dataForSeoConfigured: boolean;
+  freeCompetitorDiscoveryConfigured?: boolean;
   siteEventExportsConfigured?: boolean;
   siteEventExportSiteIds?: string[];
   sites: Integration[];

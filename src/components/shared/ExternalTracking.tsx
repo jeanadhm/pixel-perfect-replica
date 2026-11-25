@@ -339,11 +339,11 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
     }
     try {
       setDiscoveringCompetitors(true);
-      const response = await fetch(`/api/competitors/discover/${encodeURIComponent(siteScope)}`, { method: "POST", credentials: "same-origin" });
+      const response = await fetch(`/api/competitors/discover-free/${encodeURIComponent(siteScope)}`, { method: "POST", credentials: "same-origin" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Découverte concurrentielle indisponible");
       await refresh();
-      toast.success(`${data.discovered ?? 0} concurrent(s) organique(s) détecté(s), ${data.enriched ?? 0} enrichi(s).`);
+      toast.success(`${data.discovered ?? 0} concurrent(s) détecté(s) sur ${data.queriedTerms ?? 0} mot(s)-clé(s) public(s).`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Découverte concurrentielle indisponible");
     } finally {
@@ -452,11 +452,11 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
             </Button>
             <Button
               variant="outline"
-              disabled={discoveringCompetitors || user?.role === "viewer" || !connections.dataForSeoConfigured || siteScope === "all"}
+              disabled={discoveringCompetitors || user?.role === "viewer" || !connections.freeCompetitorDiscoveryConfigured || siteScope === "all"}
               onClick={() => void discoverCompetitors()}
             >
               <RefreshCw className={discoveringCompetitors ? "size-4 animate-spin" : "size-4"} />
-              {discoveringCompetitors ? "Découverte…" : "Découvrir la concurrence"}
+              {discoveringCompetitors ? "Découverte…" : "Découvrir gratuitement"}
             </Button>
             <CompetitorEditor />
           </div>
@@ -488,7 +488,7 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
       <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground">
         <b className="text-foreground">Surveillance automatique, toutes les 12 heures :</b> disponibilité HTTPS,
         redirections, titre, meta description, robots, H1, H2, données structurées et volume de
-        texte. <b className="text-foreground">Découverte organique hebdomadaire :</b> DataForSEO détecte les domaines qui partagent vos mots-clés puis relève leurs sous-domaines et pages visibles. Les métriques sans source restent inconnues, elles ne sont jamais estimées.
+        texte. <b className="text-foreground">Découverte gratuite hebdomadaire :</b> le Hub interroge un nombre limité de résultats publics Bing à partir des mots-clés mesurés et des termes métier du site, puis relève leurs sous-domaines et pages visibles. Une présence observée n’est ni une position Google ni une estimation de trafic : ces métriques restent inconnues sans fournisseur dédié.
       </div>
       <DataTable
         rows={competitors}
@@ -501,6 +501,7 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
               <div>
                 <p className="font-semibold">{c.name}</p>
                 <p className="text-xs text-muted-foreground">{c.site}</p>
+                {c.discoverySource ? <p className="mt-1 text-xs text-muted-foreground">{c.discoverySource}</p> : null}
               </div>
             ),
           },
