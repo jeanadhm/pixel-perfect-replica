@@ -226,7 +226,14 @@ export async function probeAllCompetitors() {
   const result = await pool.query(
     "SELECT id,payload->>'site' AS site FROM records WHERE collection='competitors' ORDER BY updated_at",
   );
-  const snapshots = [];
-  for (const row of result.rows) snapshots.push(await probeCompetitor(row.id, row.site));
+  const snapshots: CompetitorObservation[] = [];
+  // Four concurrent public requests keep a manual refresh responsive without
+  // turning a competitor check into an aggressive crawler.
+  for (let start = 0; start < result.rows.length; start += 4) {
+    const batch = await Promise.all(
+      result.rows.slice(start, start + 4).map((row) => probeCompetitor(row.id, row.site)),
+    );
+    snapshots.push(...batch);
+  }
   return snapshots;
 }

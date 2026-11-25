@@ -301,12 +301,36 @@ function CompetitorEditor({ item }: { item?: Competitor }) {
   );
 }
 export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }) {
-  const { backlinks, competitors, competitorObservations } = useDemo();
+  const { backlinks, competitors, competitorObservations, refresh, user } = useDemo();
+  const [refreshingCompetitors, setRefreshingCompetitors] = useState(false);
   const observationById = useMemo(
     () =>
       new Map(competitorObservations.map((observation) => [observation.competitorId, observation])),
     [competitorObservations],
   );
+
+  async function refreshCompetitors() {
+    try {
+      setRefreshingCompetitors(true);
+      const response = await fetch("/api/competitors/probe-all", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Actualisation des concurrents indisponible");
+      await refresh();
+      const failures = (data.observations ?? []).filter((item: any) => item.error).length;
+      toast.success(
+        failures
+          ? `Relevé terminé : ${failures} concurrent(s) à vérifier.`
+          : `${data.observations?.length ?? 0} concurrent(s) actualisé(s).`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Actualisation des concurrents indisponible");
+    } finally {
+      setRefreshingCompetitors(false);
+    }
+  }
 
   if (kind === "backlinks")
     return (
@@ -397,7 +421,19 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
       <PageHeader
         title="Concurrents"
         description="Les concurrents enregistrés sont contrôlés automatiquement depuis leur page publique."
-        actions={<CompetitorEditor />}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              disabled={refreshingCompetitors || user?.role === "viewer"}
+              onClick={() => void refreshCompetitors()}
+            >
+              <RefreshCw className={refreshingCompetitors ? "size-4 animate-spin" : "size-4"} />
+              {refreshingCompetitors ? "Actualisation…" : "Actualiser les concurrents"}
+            </Button>
+            <CompetitorEditor />
+          </div>
+        }
       />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Concurrents suivis" value={competitors.length} />

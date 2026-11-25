@@ -22,7 +22,7 @@ import { SITES } from "../src/lib/demo/sites";
 import { crawlPage } from "./crawl";
 import { crawlAllSites, crawlSite } from "./site-crawler";
 import { dataForSeoConfigured, synchronizeBacklinks } from "./dataforseo";
-import { latestCompetitorObservations, probeCompetitor } from "./competitors";
+import { latestCompetitorObservations, probeAllCompetitors, probeCompetitor } from "./competitors";
 import { reconcileAutomaticActions } from "./automation";
 declare global {
   namespace Express {
@@ -230,6 +230,9 @@ export function createApp() {
     ).rows[0];
     if (!row?.site) throw new HttpError(404, "Concurrent introuvable.");
     res.json({ observation: await probeCompetitor(id, row.site) });
+  });
+  app.post("/api/competitors/probe-all", editor, async (_req, res) => {
+    res.json({ observations: await probeAllCompetitors() });
   });
   app.get("/api/integrations", async (_req, res) =>
     res.json({
