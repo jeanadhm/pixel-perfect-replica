@@ -2,7 +2,7 @@ import https from "node:https";
 import { lookup } from "node:dns/promises";
 import type { IncomingHttpHeaders } from "node:http";
 import * as cheerio from "cheerio";
-import { pool } from "./db";
+import { pool, transaction } from "./db";
 import { HttpError } from "./security";
 
 export type CompetitorObservation = {
@@ -22,6 +22,69 @@ export type CompetitorObservation = {
 };
 
 const inFlight = new Map<string, Promise<CompetitorObservation>>();
+
+// Public reference set for AMBS' conversational and automotive offer. These
+// are only used to bootstrap an empty workspace; teams can still edit or add
+// competitors from the interface afterwards.
+const DEFAULT_COMPETITORS = [
+  {
+    id: "competitor-diago",
+    name: "Diago",
+    site: "https://www.diago.ai/",
+    topTerms: ["IA vocale automobile", "prise de rendez-vous", "concessions"],
+  },
+  {
+    id: "competitor-lineshift",
+    name: "Lineshift",
+    site: "https://www.lineshift.ai/",
+    topTerms: ["agents IA automobile", "voix", "CRM", "workflows"],
+  },
+  {
+    id: "competitor-natalia",
+    name: "Natalia",
+    site: "https://getnatalia.com/fr/",
+    topTerms: ["agent vocal IA", "WhatsApp", "automobile"],
+  },
+  {
+    id: "competitor-ekonsilio",
+    name: "eKonsilio",
+    site: "https://www.ekonsilio.com/",
+    topTerms: ["relation client", "chat", "WhatsApp", "automobile"],
+  },
+] as const;
+
+export async function ensureDefaultCompetitors() {
+  let created = 0;
+  await transaction(async (client) => {
+    const existing = await client.query(
+      "SELECT id,lower(regexp_replace(payload->>'site','/$','')) AS site FROM records WHERE collection='competitors' FOR UPDATE",
+    );
+    const known = new Set(existing.rows.map((row) => row.site));
+    for (const competitor of DEFAULT_COMPETITORS) {
+      const normalized = competitor.site.replace(/\/$/, "").toLowerCase();
+      if (known.has(normalized)) continue;
+      const payload = {
+        ...competitor,
+        siteId: "ambs",
+        commonKeywords: null,
+        seoVisibility: null,
+        shareOfVoice: null,
+        geoPresence: null,
+        aiCitations: null,
+      };
+      await client.query(
+        `INSERT INTO records(collection,id,site_id,payload,origin,source_url,observed_at)
+         VALUES('competitors',$1,'ambs',$2,'reference',$3,now())
+         ON CONFLICT(collection,id) DO NOTHING`,
+        [competitor.id, JSON.stringify(payload), competitor.site],
+      );
+      known.add(normalized);
+      created++;
+    }
+    if (created) await client.query("UPDATE workspace_revision SET revision=revision+1 WHERE id=1");
+  });
+  return created;
+}
 
 function isPublicIp(address: string) {
   const value = address.toLowerCase();
@@ -223,6 +286,7 @@ export async function latestCompetitorObservations() {
 }
 
 export async function probeAllCompetitors() {
+  await ensureDefaultCompetitors();
   const result = await pool.query(
     "SELECT id,payload->>'site' AS site FROM records WHERE collection='competitors' ORDER BY updated_at",
   );
