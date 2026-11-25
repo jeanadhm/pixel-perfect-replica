@@ -5,8 +5,11 @@ import { migrate } from "./migrate";
 import { seed } from "./seed";
 import { synchronizeGoogleNow } from "./google";
 import { probeAllCompetitors } from "./competitors";
+import { discoverCompetitors, dataForSeoConfigured } from "./dataforseo";
 import { reconcileAutomaticActions } from "./automation";
 import { crawlDueSites } from "./site-crawler";
+import { syncConfiguredSiteEvents } from "./site-events";
+import { SITES } from "../src/lib/demo/sites";
 if (!config.databaseUrl)
   throw new Error("DATABASE_URL manquant. Exécuter npm run db:local ou configurer .env.");
 await migrate();
@@ -20,6 +23,8 @@ const server = createApp().listen(config.port, config.host, () =>
 );
 let googleAutomation: ReturnType<typeof setInterval> | undefined;
 let monitoringAutomation: ReturnType<typeof setInterval> | undefined;
+let eventAutomation: ReturnType<typeof setInterval> | undefined;
+let competitorDiscoveryAutomation: ReturnType<typeof setInterval> | undefined;
 if (config.autoSyncEnabled) {
   let syncing = false;
   const runGoogleSynchronization = async () => {
@@ -50,6 +55,45 @@ if (config.autoSyncEnabled) {
     config.autoSyncIntervalMinutes * 60 * 1000,
   );
   googleAutomation.unref();
+}
+if (config.autoEventSyncEnabled) {
+  let syncingEvents = false;
+  const runEventSynchronization = async () => {
+    if (syncingEvents) return;
+    syncingEvents = true;
+    try {
+      const result = await syncConfiguredSiteEvents();
+      if (result.configured) console.log(`Interactions : ${result.completed} flux synchronisé(s), ${result.failed} échec(s).`);
+    } catch {
+      console.error("Synchronisation des interactions non exécutée.");
+    } finally {
+      syncingEvents = false;
+    }
+  };
+  const initial = setTimeout(() => void runEventSynchronization(), 20000);
+  initial.unref();
+  eventAutomation = setInterval(() => void runEventSynchronization(), config.autoEventSyncIntervalMinutes * 60 * 1000);
+  eventAutomation.unref();
+}
+if (config.autoCompetitorDiscoveryEnabled && dataForSeoConfigured()) {
+  let discovering = false;
+  const runCompetitorDiscovery = async () => {
+    if (discovering) return;
+    discovering = true;
+    try {
+      // DataForSEO is a paid source: scheduled discovery is intentionally weekly
+      // and records its source on every competitor. Manual discovery stays available.
+      await Promise.allSettled(SITES.map((site) => discoverCompetitors(site.id)));
+    } catch {
+      console.error("Découverte concurrentielle automatique non exécutée.");
+    } finally {
+      discovering = false;
+    }
+  };
+  const initial = setTimeout(() => void runCompetitorDiscovery(), 45000);
+  initial.unref();
+  competitorDiscoveryAutomation = setInterval(() => void runCompetitorDiscovery(), config.autoCompetitorDiscoveryIntervalHours * 60 * 60 * 1000);
+  competitorDiscoveryAutomation.unref();
 }
 if (config.autoMonitoringEnabled) {
   let monitoring = false;
@@ -95,6 +139,8 @@ if (config.autoMonitoringEnabled) {
 async function stop() {
   if (googleAutomation) clearInterval(googleAutomation);
   if (monitoringAutomation) clearInterval(monitoringAutomation);
+  if (eventAutomation) clearInterval(eventAutomation);
+  if (competitorDiscoveryAutomation) clearInterval(competitorDiscoveryAutomation);
   server.close();
   await pool.end();
   process.exit(0);

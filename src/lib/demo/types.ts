@@ -176,6 +176,12 @@ export interface Competitor {
   geoPresence: number | null;
   aiCitations: number | null;
   topTerms: string[];
+  estimatedTraffic?: number | null | undefined;
+  averagePosition?: number | null | undefined;
+  subdomains?: string[] | undefined;
+  publicPages?: { url: string; label: string }[] | undefined;
+  discoverySource?: string | undefined;
+  discoveredAt?: string | undefined;
 }
 
 export interface Lead {

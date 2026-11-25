@@ -301,8 +301,9 @@ function CompetitorEditor({ item }: { item?: Competitor }) {
   );
 }
 export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }) {
-  const { backlinks, competitors, competitorObservations, refresh, user } = useDemo();
+  const { backlinks, competitors, competitorObservations, refresh, user, siteScope, connections } = useDemo();
   const [refreshingCompetitors, setRefreshingCompetitors] = useState(false);
+  const [discoveringCompetitors, setDiscoveringCompetitors] = useState(false);
   const observationById = useMemo(
     () =>
       new Map(competitorObservations.map((observation) => [observation.competitorId, observation])),
@@ -329,6 +330,24 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
       toast.error(error instanceof Error ? error.message : "Actualisation des concurrents indisponible");
     } finally {
       setRefreshingCompetitors(false);
+    }
+  }
+  async function discoverCompetitors() {
+    if (siteScope === "all") {
+      toast.message("Sélectionnez un site pour découvrir sa concurrence organique.");
+      return;
+    }
+    try {
+      setDiscoveringCompetitors(true);
+      const response = await fetch(`/api/competitors/discover/${encodeURIComponent(siteScope)}`, { method: "POST", credentials: "same-origin" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Découverte concurrentielle indisponible");
+      await refresh();
+      toast.success(`${data.discovered ?? 0} concurrent(s) organique(s) détecté(s), ${data.enriched ?? 0} enrichi(s).`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Découverte concurrentielle indisponible");
+    } finally {
+      setDiscoveringCompetitors(false);
     }
   }
 
@@ -431,6 +450,14 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
               <RefreshCw className={refreshingCompetitors ? "size-4 animate-spin" : "size-4"} />
               {refreshingCompetitors ? "Actualisation…" : "Actualiser les concurrents"}
             </Button>
+            <Button
+              variant="outline"
+              disabled={discoveringCompetitors || user?.role === "viewer" || !connections.dataForSeoConfigured || siteScope === "all"}
+              onClick={() => void discoverCompetitors()}
+            >
+              <RefreshCw className={discoveringCompetitors ? "size-4 animate-spin" : "size-4"} />
+              {discoveringCompetitors ? "Découverte…" : "Découvrir la concurrence"}
+            </Button>
             <CompetitorEditor />
           </div>
         }
@@ -461,9 +488,7 @@ export function ExternalTracking({ kind }: { kind: "backlinks" | "competitors" }
       <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground">
         <b className="text-foreground">Surveillance automatique, toutes les 12 heures :</b> disponibilité HTTPS,
         redirections, titre, meta description, robots, H1, H2, données structurées et volume de
-        texte. <b className="text-foreground">Ce qui nécessite une source distincte :</b> positions
-        Google, part de voix, volume et visibilité IA. Le hub les laisse donc inconnus plutôt que de
-        les estimer.
+        texte. <b className="text-foreground">Découverte organique hebdomadaire :</b> DataForSEO détecte les domaines qui partagent vos mots-clés puis relève leurs sous-domaines et pages visibles. Les métriques sans source restent inconnues, elles ne sont jamais estimées.
       </div>
       <DataTable
         rows={competitors}

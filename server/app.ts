@@ -21,9 +21,10 @@ import { importLeads } from "./imports";
 import { SITES } from "../src/lib/demo/sites";
 import { crawlPage } from "./crawl";
 import { crawlAllSites, crawlSite } from "./site-crawler";
-import { dataForSeoConfigured, synchronizeBacklinks } from "./dataforseo";
+import { dataForSeoConfigured, discoverCompetitors, synchronizeBacklinks } from "./dataforseo";
 import { latestCompetitorObservations, probeAllCompetitors, probeCompetitor } from "./competitors";
 import { reconcileAutomaticActions } from "./automation";
+import { configuredSiteEventExportIds, siteEventExportsConfigured, siteEventSummary, syncSiteEvents } from "./site-events";
 declare global {
   namespace Express {
     interface Request {
@@ -234,11 +235,18 @@ export function createApp() {
   app.post("/api/competitors/probe-all", editor, async (_req, res) => {
     res.json({ observations: await probeAllCompetitors() });
   });
+  app.post("/api/competitors/discover/:siteId", editor, async (req, res) => {
+    if (!dataForSeoConfigured())
+      throw new HttpError(503, "DataForSEO n’est pas configuré : la découverte automatique est indisponible.");
+    res.json(await discoverCompetitors(String(req.params["siteId"])));
+  });
   app.get("/api/integrations", async (_req, res) =>
     res.json({
       googleConfigured: googleConfigured(),
       googleConnected: !!(await pool.query("SELECT id FROM google_tokens")).rowCount,
       dataForSeoConfigured: dataForSeoConfigured(),
+      siteEventExportsConfigured: siteEventExportsConfigured(),
+      siteEventExportSiteIds: configuredSiteEventExportIds(),
       sites: (await pool.query("SELECT * FROM integrations ORDER BY site_id")).rows,
       runs: (await pool.query("SELECT * FROM sync_runs ORDER BY started_at DESC LIMIT 30")).rows,
     }),
@@ -347,6 +355,18 @@ export function createApp() {
       })
       .parse(req.body);
     res.json({ count: await importLeads(data.siteId, data.system, data.csv, req.user!.id) });
+  });
+  app.post("/api/site-events/sync/:siteId", editor, async (req, res) => {
+    res.json(await syncSiteEvents(String(req.params["siteId"])));
+  });
+  app.get("/api/site-events", async (req, res) => {
+    const days = z.coerce.number().int().min(1).max(93).parse(req.query["days"] ?? 30);
+    const siteId = String(req.query["site"] ?? "all");
+    const end = new Date();
+    end.setUTCHours(0, 0, 0, 0);
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - days + 1);
+    res.json(await siteEventSummary(siteId, start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)));
   });
   app.get("/api/metrics", async (req, res) => {
     const days = z.coerce

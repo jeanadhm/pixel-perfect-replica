@@ -28,6 +28,8 @@ export interface Connections {
   googleConfigured: boolean;
   googleConnected: boolean;
   dataForSeoConfigured: boolean;
+  siteEventExportsConfigured?: boolean;
+  siteEventExportSiteIds?: string[];
   sites: Integration[];
   runs: SyncRun[];
 }

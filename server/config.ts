@@ -26,8 +26,23 @@ export const config = {
     168,
     Math.max(12, Number(process.env["AUTO_CRAWL_INTERVAL_HOURS"] ?? 24) || 24),
   ),
+  // Competitive discovery is enabled only when a DataForSEO account is present.
+  // It runs weekly by default because each discovery consumes provider credits.
+  autoCompetitorDiscoveryEnabled: process.env["AUTO_COMPETITOR_DISCOVERY_ENABLED"] !== "false",
+  autoCompetitorDiscoveryIntervalHours: Math.min(
+    24 * 30,
+    Math.max(24, Number(process.env["AUTO_COMPETITOR_DISCOVERY_INTERVAL_HOURS"] ?? 168) || 168),
+  ),
   // Kept exclusively on the server. DataForSEO uses HTTP Basic authentication;
   // never expose either value through a VITE_/NEXT_PUBLIC_ variable.
   dataForSeoLogin: process.env["DATAFORSEO_LOGIN"] ?? "",
   dataForSeoPassword: process.env["DATAFORSEO_PASSWORD"] ?? "",
+  // JSON kept server-side only. Example:
+  // {"ambs":{"url":"https://ambs-agency.com/api/analytics/export/events","token":"..."}}
+  siteEventExports: process.env["SITE_EVENT_EXPORTS"] ?? "",
+  autoEventSyncEnabled: process.env["AUTO_EVENT_SYNC_ENABLED"] !== "false",
+  autoEventSyncIntervalMinutes: Math.min(
+    24 * 60,
+    Math.max(15, Number(process.env["AUTO_EVENT_SYNC_INTERVAL_MINUTES"] ?? 15) || 15),
+  ),
 };

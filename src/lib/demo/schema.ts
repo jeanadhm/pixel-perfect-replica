@@ -185,6 +185,12 @@ const competitor = z.object({
   geoPresence: number.min(0).max(100).nullable(),
   aiCitations: number.min(0).nullable(),
   topTerms: z.array(text),
+  estimatedTraffic: number.min(0).nullable().optional(),
+  averagePosition: number.min(0).nullable().optional(),
+  subdomains: z.array(text).optional(),
+  publicPages: z.array(z.object({ url: text, label: text })).optional(),
+  discoverySource: text.optional(),
+  discoveredAt: text.optional(),
 });
 export const stateSchema = z.object({
   backlinks: z.array(backlink).default([]),

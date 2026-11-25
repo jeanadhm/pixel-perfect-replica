@@ -1,7 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { MousePointerClick, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
-import { useDemo, uid } from "@/lib/demo/store";
+import { PERIOD_DAYS, useDemo, uid } from "@/lib/demo/store";
+import { api } from "@/lib/api/client";
 import { Link } from "@/components/navigation";
 import type { Lead } from "@/lib/demo/types";
 import { siteLabel } from "@/lib/demo/sites";
@@ -27,9 +29,50 @@ import {
 import { eur } from "@/lib/demo/utils";
 const statuses = ["Nouveau", "Qualifié", "Rendez-vous", "Proposition", "Client", "Perdu"] as const;
 export default function LeadsPage() {
-  const { leads, update, members, user } = useDemo();
+  const { leads, update, members, user, siteScope, period, connections } = useDemo();
   const [selected, setSelected] = useState<string | null>(null);
+  const [interactions, setInteractions] = useState<SiteEventSummary | null>(null);
+  const [loadingInteractions, setLoadingInteractions] = useState(false);
   const lead = leads.find((l) => l.id === selected);
+  const selectedSiteHasEventSource = siteScope === "all"
+    ? Boolean(connections.siteEventExportsConfigured)
+    : connections.siteEventExportSiteIds?.includes(siteScope) ?? false;
+  const loadInteractions = async () => {
+    setLoadingInteractions(true);
+    try {
+      setInteractions(await api<SiteEventSummary>(`/site-events?site=${siteScope}&days=${Math.min(93, PERIOD_DAYS[period])}`));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Interactions indisponibles");
+      setInteractions(null);
+    } finally {
+      setLoadingInteractions(false);
+    }
+  };
+  useEffect(() => { void loadInteractions(); }, [siteScope, period]);
+  const interactionTotals = useMemo(() => {
+    const items = interactions?.items ?? [];
+    return {
+      total: items.reduce((sum, item) => sum + item.events, 0),
+      ctas: items.filter((item) => item.name === "demo_cta_click").reduce((sum, item) => sum + item.events, 0),
+      forms: items.filter((item) => item.name === "demo_form_submit").reduce((sum, item) => sum + item.events, 0),
+    };
+  }, [interactions]);
+  const syncInteractions = async () => {
+    if (siteScope === "all") {
+      toast.message("Sélectionnez un site pour lancer un relevé immédiat.");
+      return;
+    }
+    setLoadingInteractions(true);
+    try {
+      const data = await api<{ rows: number }>(`/site-events/sync/${siteScope}`, { method: "POST" });
+      toast.success(`${data.rows} ligne(s) d’interactions actualisée(s).`);
+      await loadInteractions();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Synchronisation indisponible");
+    } finally {
+      setLoadingInteractions(false);
+    }
+  };
   return (
     <div className="space-y-6">
       <PageHeader
@@ -54,6 +97,58 @@ export default function LeadsPage() {
         />
         <Kpi label="Clients déclarés" value={leads.filter((l) => l.status === "Client").length} />
       </div>
+      <section className="rounded-xl border bg-card p-5" aria-labelledby="interactions-title">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <MousePointerClick className="size-5 text-primary" aria-hidden="true" />
+              <h2 id="interactions-title" className="text-lg font-semibold">Interactions & conversions</h2>
+            </div>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Les événements sont agrégés par bouton et par page. Les coordonnées des visiteurs ne sont jamais envoyées au Hub ; l’admin AMBS relie le parcours au contact après l’envoi du formulaire.
+            </p>
+          </div>
+          <Button variant="outline" disabled={loadingInteractions || user?.role === "viewer" || !selectedSiteHasEventSource || siteScope === "all"} onClick={() => void syncInteractions()}>
+            <RefreshCw className={loadingInteractions ? "size-4 animate-spin" : "size-4"} />
+            {loadingInteractions ? "Actualisation…" : "Actualiser maintenant"}
+          </Button>
+        </div>
+        {!selectedSiteHasEventSource ? (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+            <b>Flux d’interactions à connecter.</b> Ajoutez <code>SITE_EVENT_EXPORTS</code> dans Dokploy avec le jeton du site. Le Hub actualisera ensuite les résultats toutes les 15 minutes.
+          </div>
+        ) : (
+          <>
+            <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Kpi label="Interactions mesurées" value={interactionTotals.total} sub="Clics et envois, pas des leads inventés" />
+              <Kpi label="Clics vers une démo" value={interactionTotals.ctas} icon={MousePointerClick} />
+              <Kpi label="Formulaires envoyés" value={interactionTotals.forms} tone="success" icon={Send} />
+              <Kpi label="Conversion CTA → formulaire" value={interactionTotals.ctas ? `${((interactionTotals.forms / interactionTotals.ctas) * 100).toFixed(1)}%` : "—"} sub="Indicateur de parcours" />
+            </div>
+            {!loadingInteractions && !(interactions?.items.length) ? (
+              <p className="mt-5 rounded-lg bg-muted/50 p-4 text-sm leading-6 text-muted-foreground">Aucune interaction sur cette période. Le suivi commencera dès que les visiteurs cliqueront après l’activation du flux.</p>
+            ) : (
+              <div className="mt-5 overflow-x-auto rounded-lg border">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead className="bg-muted/50 text-left text-muted-foreground">
+                    <tr><th className="px-4 py-3 font-medium">Ce qui attire</th><th className="px-4 py-3 font-medium">Page</th><th className="px-4 py-3 text-right font-medium">Interactions</th><th className="px-4 py-3 text-right font-medium">Visiteurs uniques</th></tr>
+                  </thead>
+                  <tbody>
+                    {(interactions?.items ?? []).slice(0, 15).map((item) => (
+                      <tr key={`${item.name}-${item.path}-${item.label}-${item.destination}`} className="border-t">
+                        <td className="px-4 py-3"><p className="font-medium">{item.label || item.destination || "Interaction sans libellé"}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.name === "demo_form_submit" ? "Formulaire envoyé" : item.name === "demo_cta_click" ? "CTA démo" : "Clic"}</p></td>
+                        <td className="max-w-64 truncate px-4 py-3 text-muted-foreground" title={item.path}>{item.path}</td>
+                        <td className="px-4 py-3 text-right font-semibold tabular-nums">{item.events}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{item.uniqueVisitors}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </section>
       {!leads.length && (
         <div className="rounded-xl border bg-card p-6 text-sm leading-6 text-muted-foreground">
           Aucune fiche importée ou saisie pour ce périmètre. Cela ne signifie pas que l’entreprise
@@ -177,6 +272,20 @@ export default function LeadsPage() {
       </Sheet>
     </div>
   );
+}
+
+interface SiteEventSummary {
+  startDate: string;
+  endDate: string;
+  items: Array<{
+    name: string;
+    path: string;
+    label: string;
+    destination: string;
+    events: number;
+    uniqueVisitors: number;
+    lastSeenAt: string;
+  }>;
 }
 function NewLead() {
   const { update, siteScope, user } = useDemo();
