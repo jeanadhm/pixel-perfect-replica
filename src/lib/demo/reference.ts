@@ -29,7 +29,7 @@ const GROUPS: [string, string, string[]][] = [
   ],
   [
     "WhatsApp acquisition",
-    "/solutions/agent-ia-commercial",
+    "/plateforme/ai-agents",
     [
       "WhatsApp acquisition",
       "acquisition leads WhatsApp",
@@ -39,7 +39,7 @@ const GROUPS: [string, string, string[]][] = [
   ],
   [
     "Campagnes WhatsApp",
-    "/solutions/campaign-manager-whatsapp",
+    "/whatsapp.html",
     [
       "campagne WhatsApp",
       "campagne push WhatsApp",
@@ -85,7 +85,7 @@ const GROUPS: [string, string, string[]][] = [
   ],
   [
     "Lead Management",
-    "/solutions/lead-management-ia",
+    "/use-cases/lead-to-revenus",
     [
       "lead management",
       "gestion des leads",
@@ -99,7 +99,7 @@ const GROUPS: [string, string, string[]][] = [
   ],
   [
     "Business Automation",
-    "/solutions/lead-management-ia",
+    "/use-cases/lead-to-revenus",
     [
       "business automation",
       "automatisation commerciale",
@@ -109,7 +109,7 @@ const GROUPS: [string, string, string[]][] = [
   ],
   [
     "Agents IA",
-    "/solutions/agent-ia-commercial",
+    "/plateforme/ai-agents",
     [
       "agent IA commercial",
       "agent IA WhatsApp",
@@ -131,7 +131,7 @@ const GROUPS: [string, string, string[]][] = [
   ],
   [
     "Réactivation CRM",
-    "/solutions/reactivation-crm-whatsapp",
+    "/use-cases/customer-reactivation",
     [
       "réactivation CRM",
       "relance clients inactifs",
@@ -264,7 +264,7 @@ export const referencePages: SitePage[] = [
   page(
     "ref-acquisition",
     "Agents IA d’acquisition & conversion",
-    "/solutions/agent-ia-commercial",
+    "/plateforme/ai-agents",
     "Page solution",
     "Agents IA",
     "agent IA commercial",
@@ -272,7 +272,7 @@ export const referencePages: SitePage[] = [
   page(
     "ref-reactivation",
     "Agents IA de réactivation CRM",
-    "/solutions/reactivation-crm-whatsapp",
+    "/use-cases/customer-reactivation",
     "Page solution",
     "Réactivation CRM",
     "réactivation CRM WhatsApp",
@@ -288,7 +288,7 @@ export const referencePages: SitePage[] = [
   page(
     "ref-leads",
     "Lead Management & Business Automation",
-    "/solutions/lead-management-ia",
+    "/use-cases/lead-to-revenus",
     "Page solution",
     "Lead Management",
     "automatisation gestion des leads",
@@ -296,7 +296,7 @@ export const referencePages: SitePage[] = [
   page(
     "ref-campaigns",
     "Campaign Manager IA",
-    "/solutions/campaign-manager-whatsapp",
+    "/whatsapp.html",
     "Page solution",
     "Campagnes WhatsApp",
     "plateforme marketing WhatsApp",

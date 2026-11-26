@@ -42,6 +42,29 @@ const questions: Record<string, string[]> = {
 };
 export const recordId = (value: string) =>
   createHash("sha256").update(value).digest("hex").slice(0, 24);
+
+// These paths were renamed on ambs-agency.com. Their permanent redirects live
+// in the AMBS web server configuration; this map keeps the shared workspace
+// from retaining the former 404 URLs.
+const legacyAmbsUrlRedirects: Record<string, string> = {
+  "https://ambs-agency.com/cas-clients/3f-immobilier-elixir":
+    "https://ambs-agency.com/cas-clients/groupe-3f",
+  "https://ambs-agency.com/cas-clients/kia-rousseau":
+    "https://ambs-agency.com/cas-clients/rousseau-automobile",
+  "https://ambs-agency.com/cas-clients/reside-etudes-reactivation-crm":
+    "https://ambs-agency.com/cas-clients/1p2c",
+  "https://ambs-agency.com/solutions/agent-ia-commercial":
+    "https://ambs-agency.com/plateforme/ai-agents",
+  "https://ambs-agency.com/solutions/campaign-manager-whatsapp":
+    "https://ambs-agency.com/whatsapp.html",
+  "https://ambs-agency.com/solutions/reactivation-crm-whatsapp":
+    "https://ambs-agency.com/use-cases/customer-reactivation",
+  "https://ambs-agency.com/solutions/lead-management-ia":
+    "https://ambs-agency.com/use-cases/lead-to-revenus",
+};
+
+const legacyAmbsUrls = Object.keys(legacyAmbsUrlRedirects);
+
 export function initialState(): DemoState {
   const base = createAmbsState();
   const pages = PUBLIC_PAGES.map((p, i) => ({
@@ -162,6 +185,15 @@ export async function seed() {
         "INSERT INTO records(collection,id,site_id,payload,origin) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
         ["pages", page.id, page.siteId, JSON.stringify(page), "public_html"],
       );
+    // Their canonical destinations already exist in PUBLIC_PAGES. Remove only
+    // system-created entries so a production dashboard stops showing legacy 404s.
+    await client.query("DELETE FROM public_observations WHERE url = ANY($1::text[])", [
+      legacyAmbsUrls,
+    ]);
+    await client.query(
+      "DELETE FROM records WHERE collection='pages' AND origin='public_html' AND id = ANY($1::text[])",
+      [legacyAmbsUrls.map((url) => `public-${recordId(url)}`)],
+    );
     for (const page of PUBLIC_PAGES) {
       const site = SITES.find((s) => new URL(page.url).hostname === s.host);
       if (!site) continue;
@@ -179,6 +211,31 @@ export async function seed() {
     await client.query(
       "CREATE TABLE IF NOT EXISTS seed_versions(version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())",
     );
+    // The main reference seed runs only once. Update old keyword target URLs
+    // once in existing shared workspaces without resetting user-managed data.
+    if (!(await client.query("SELECT version FROM seed_versions WHERE version='canonical-urls-v1'")).rowCount) {
+      const keywordRows = await client.query(
+        "SELECT id,payload FROM records WHERE collection='keywords' AND site_id='ambs'",
+      );
+      let changed = false;
+      for (const row of keywordRows.rows) {
+        const payload = row.payload as Record<string, unknown>;
+        const url = typeof payload["url"] === "string" ? payload["url"] : "";
+        const plan = payload["plan"] as Record<string, unknown> | undefined;
+        const contentUrl =
+          typeof plan?.["contentUrl"] === "string" ? plan["contentUrl"] : "";
+        const nextUrl = legacyAmbsUrlRedirects[url] ?? url;
+        const nextContentUrl = legacyAmbsUrlRedirects[contentUrl] ?? contentUrl;
+        if (nextUrl === url && nextContentUrl === contentUrl) continue;
+        await client.query("UPDATE records SET payload=$1 WHERE id=$2", [
+          { ...payload, url: nextUrl, ...(plan ? { plan: { ...plan, contentUrl: nextContentUrl } } : {}) },
+          row.id,
+        ]);
+        changed = true;
+      }
+      await client.query("INSERT INTO seed_versions(version) VALUES('canonical-urls-v1')");
+      if (changed) await client.query("UPDATE workspace_revision SET revision=revision+1 WHERE id=1");
+    }
     if ((await client.query("SELECT version FROM seed_versions WHERE version='real-v1'")).rowCount)
       return;
     for (const collection of ["keywords", "prompts", "actions"] as const)
